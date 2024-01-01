@@ -23,7 +23,7 @@ class HeartBeat:
         self._interval = interval  # 服务心跳执行时间间隔(秒)
         print_interval = int(print_interval)
         if print_interval < 0:
-            print_interval = 1
+            print_interval = 3
         self._print_interval = print_interval
         self._tasks = None
 
@@ -36,12 +36,11 @@ class HeartBeat:
         """ 
         """
         self._count += 1
-        if (time.time() % self._print_interval) == 0:
+        if (int(time.time()) % self._print_interval) == 0:
             #
-            if self._print_in_count < self._count:
-                msg = f'MSG:::HeartBeat.ticker:::do heartbeat:{self.name}, count:{int(self._count / 200)}'
-                logger.info(msg)
-                self._print_in_count = self._count 
+            msg = f'MSG:::HeartBeat.ticker:::do heartbeat:{self.heartname}, count:{int(self._count / 200)}'
+            logger.info(msg)
+
         # 下一次心跳间隔
         asyncio.get_event_loop().call_later(self._interval, self.ticker)
 
@@ -50,7 +49,7 @@ class HeartBeat:
             func = self._task["func"]
             args = self._task["args"]
             kwargs = self._task["kwargs"]
-            kwargs["name"] = self.heartname
+            kwargs["heartname"] = self.heartname
         
             asyncio.get_event_loop().create_task(func(*args, **kwargs))
 

@@ -29,9 +29,6 @@ def update_tasks_symbols(domain_map):
             logger.error(err)
             exit()
 
-gen_all_symbol()
-update_tasks_symbols(local.symbol_domain_map)
-
 def get_task_symbols_by_list(node_id, node_domain, symbol_list):
     success, err = tasks.get_symbol_list_by_list.delay(node_id, node_domain, symbol_list).get()
     if success:
@@ -55,8 +52,11 @@ def get_symbol_list(node_id, node_domain):
         symbol_list = get_task_symbols_by_length(node_id, node_domain, config.symbol_length)
     elif config.symbol_list:
         symbol_list = get_task_symbols_by_list(node_id, node_domain, config.symbol_list)
+    else:
+        symbol_list = []
     config.update(temporary=False,symbol_list=symbol_list)
     if symbol_list == []:
+        logger.error("can get any symbol to list, set admin or symbol_length or update_tasks_symbols?")
         exit()
     return symbol_list
 
@@ -126,6 +126,15 @@ def run_strategy(Strategy,*args, **kwargs):
         strategy_columns=['open', 'high', 'low', 'close', 'vol']
 
     """
+    async def run( strategy, **kwargs):
+        # await asyncio.sleep(0)
+        if strategy.data_flows.window_slided_end == False:
+            strategy.data_flows.window_sliding()
+        strategy.update()
+        await strategy.start()
+        # else:
+        #     strategy.end()
+
     gen_all_symbol()
     if config.update_tasks_symbols:
         update_tasks_symbols(local.symbol_domain_map)
@@ -142,7 +151,9 @@ def run_strategy(Strategy,*args, **kwargs):
     strategy_price_reference = getattr(Strategy,"strategy_price_reference", None) \
         or config.setdefault("strategy_price_reference","current_period_close")
  
-
+    histories_length = getattr(Strategy,"histories_length", 20000) or \
+        config.setdefault("strategy_histories_length","histories_length")
+    
     max_window = getattr(Strategy,"strategy_window", None) or config.setdefault("strategy_window", 500)
     if Strategy.model == "historical":
         logger.info(f"strategy initiated, node {local.node_id} start into historical model.")
@@ -151,7 +162,8 @@ def run_strategy(Strategy,*args, **kwargs):
             index_name=index_name, 
             strategy_columns=strategy_columns,
             symbol_list=symbol_list,
-            max_window=max_window
+            max_window=max_window,
+            histories_length=histories_length
         ):  
             order_config = get_historical_order_config()
             strategy_heartbeat_config = get_strategy_heartbeat_config()
@@ -175,11 +187,4 @@ def run_strategy(Strategy,*args, **kwargs):
 
 
 
-async def run( strategy, **kwargs):
-    await asyncio.sleep(0)
-    if strategy.data_flows._window_slided_end == False:
-        strategy.data_flows._window_sliding()
-        strategy.update()
-        await strategy.start()
-    else:
-        strategy.end()
+

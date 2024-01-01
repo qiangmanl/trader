@@ -1,7 +1,5 @@
 
 import pandas as pd
-
-from trader.utils.base import DictBase
 from trader.utils.tools import str_pd_datetime
 from .base import StrategyBase, SymbolsPropertyBase
 from trader.const import ROW_DATA_DIR
@@ -53,7 +51,8 @@ class HistoricalStrategy(StrategyBase, SymbolsPropertyBase):
             index_name:str="datetime",
             strategy_columns:list=['open', 'high', 'low', 'close', 'volume'],
             symbol_list:list=[],
-            max_window=1000
+            max_window=1000,
+            histories_length=20000
         )->bool | None:
         """
             history file name:
@@ -79,7 +78,7 @@ class HistoricalStrategy(StrategyBase, SymbolsPropertyBase):
             logger.error(e)
             exit()
 
-        self.data_flows.init_window(histories_data, local.node_domain, symbol_property_list)
+        self.data_flows.init_window(histories_data, local.node_domain, symbol_property_list, length=histories_length)
     # local.data_flows.get_symbol_history("300878")
         return True 
 
@@ -144,8 +143,7 @@ class HistoricalStrategy(StrategyBase, SymbolsPropertyBase):
             price = self.orderbook.get_symbol_price(symbol)
             order_rows.extend([price, position.qty, position.value])
             #nan data  bool(nan) == False
-        self.orderbook.order_flows.loc[trade_time] = order_rows
-
+        self.orderbook.order_flows.loc[trade_time] = pd.Series(order_rows)
 
     def update(self)->bool:
         """

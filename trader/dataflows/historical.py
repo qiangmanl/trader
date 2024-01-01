@@ -18,13 +18,13 @@ class HistoricalFlows(DataFlows):
     def __init__(self, max_window=200) -> None:
         super().__init__(max_window)
   
-    def init_window(self, histories_data, domain, symbol_property_list):
+    def init_window(self, histories_data, domain, symbol_property_list, length=20000):
         """
         """
         self.symbols_property = symbol_property_list
         self.domain = domain
         self.initiated = True
-        self.histories = histories_data
+        self.histories = histories_data[:length]
         self.lastest_histories_index = len(self.histories.index)
         if  self.lastest_histories_index > self.max_window:
             self._window_end_index = self.max_window
@@ -32,7 +32,7 @@ class HistoricalFlows(DataFlows):
             self._window_end_index = self.lastest_histories_index
 
     @property
-    def _window_slided_end(self):
+    def window_slided_end(self):
         return self.histories.index[self._window_end_index] == self.histories.index[-1]
 
     @property
@@ -51,7 +51,7 @@ class HistoricalFlows(DataFlows):
 
     @property
     def next_flows_period(self):
-        if self._window_slided_end == False:
+        if self.window_slided_end == False:
             return self.histories.index[ self._window_end_index ]
         else:
             return self.histories.index[ self._window_end_index -1 ]
@@ -64,16 +64,11 @@ class HistoricalFlows(DataFlows):
         """
         return self.histories.loc[self._full_window_index]
 
-    def _window_sliding(self):
+    def window_sliding(self):
         self.histories.drop(self.histories.index[0],axis=0,inplace=True)
-
-    async def run_strategy(self,strategy, **kwargs):
-        await asyncio.sleep(0)
-        if self._window_slided_end == False:
-            self._window_sliding()
-            strategy.update()
-            await strategy.start()
-        else:
-            strategy.end()
+        # if getattr(self,"x",None)==None:
+        #     self.x = 1
+        # self.x +=1
+        # print(self.x)
 
 
