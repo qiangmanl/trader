@@ -1,0 +1,31 @@
+{
+    "project" : "trader",
+    "log" : {
+        "path" :"logs/inter.log",
+        "rotation" :"500MB",
+        "encoding" :"utf-8",
+        "enqueue" :true,
+        "compression" :"zip",
+        "retention" :"10 days"
+    },
+    "historical_strategy" :{
+        "order":{
+            "commission" :0.003,
+            "blance" : 200000
+        }
+    },
+    "heartbeats" : [
+            {
+            "name" : "run_history",
+            "print_interval" : 60,
+            "interval" :1
+        }
+    ],
+    "host_task_limit" : 10,
+    "celery_amqp" : {
+        "broker"  : "amqp://guest@localhost//",
+        "backend" : "rpc://"
+    }
+}
+
+
