@@ -40,20 +40,7 @@ class StrategyBase:
     @property
     def current_time(self):
         return self.current_datetime.time()
-
-
-    # @property
-    # def datetime_period(self):
-    #     return self.current_datetime - self.histories_index[-2]
     
-    # @property
-    # def next_period(self):
-    #     #时间序列下一个理论的周期时间单位
-    #     return self.current_datetime + self.datetime_period
-    
-    # @property
-    # def next_period_index(self):
-    #     raise NotImplementedError(" Not implemented next_period_index")
     
     def get_previous_history(self, symbol:str) -> pd.core.series.Series:
         data = getattr(self,symbol).history.loc[self.previous_datetime]
@@ -68,12 +55,7 @@ class SymbolsPropertyBase:
     """
         call strategy.{symbol}.{attribute} to get strategy.{attribute}.{symbol} attribute.
     """
-
-    # def init_symbol_property(self):
-    #     self.property_dict = SymbolsPropertyDict()
-    #     for symbol in self.symbols_property:
-    #         self.property_dict.__setattr__(symbol, SymbolsPropertyDict())
-        
+   
     def init_symbol_property(self, strategy_columns):
         # self.property_dict = SymbolsPropertyDict()
         for symbol in self.symbols_property:
@@ -82,9 +64,6 @@ class SymbolsPropertyBase:
                 self._set_symbol_property(symbol,strategy_columns)
                 self._update_symbol_history(symbol)
                 self._open_symbol_position(symbol)
-                # setattr(getattr(self, symbol),'price_reference' ,getattr(self.orderbook.price_reference ,symbol))
-                # setattr(getattr(self, symbol),'history' ,getattr(self.current_window ,symbol))
-
 
     def update_symbol_property(self):
         for symbol in self.symbols_property:
@@ -93,10 +72,9 @@ class SymbolsPropertyBase:
             self._update_symbol_history(symbol)
             self._update_symbol_quota(symbol)
 
-
     def _set_symbol_object(self, symbol) -> None:
         #为了让strategy可以直接通过symbol获得symbol相关属性
-        setattr(self, symbol, type("SymbolsObject", (), {})())
+        setattr(self, symbol, type("SymbolObject", (), {})())
 
     def _set_symbol_property(self, symbol, strategy_columns) -> None:
         #symbol的属性

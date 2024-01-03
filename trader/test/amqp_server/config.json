@@ -1,0 +1,9 @@
+{
+    "project": "amqp",
+    "amqp_celery": {
+        "broker": "amqp://guest@localhost//",
+        "backend": "rpc://"
+    },
+    "node_id": "gd3KvecZT4SOxqLuWj",
+    "node_domain": "default"
+}

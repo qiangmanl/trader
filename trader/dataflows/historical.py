@@ -6,7 +6,7 @@ class DataFlows:
         self.lastest_histories_index_num = None
         self.window_start_index = 0
 
-    def _get_period_row(self):
+    def _get_period(self):
         raise NotImplementedError("not _get_period_row implemented")
 
     @property
@@ -25,20 +25,16 @@ class HistoricalDataFlows(DataFlows):
         self.histories = histories_data[:length]
         self.histories_generator = self._gen_histories_generator()
         #为了时间同步,也为了尽早更新recently_period
-        self.period_row = self._get_period_row()
+        self.period_row = self._get_period()
         self.histories_index = self.histories.index
         self.lastest_histories_index_num = len(self.histories_index)
-        # if  self.lastest_histories_index_num > self.max_window:
-        #     self._histories_end_index_num = self.max_window
-        # else:
-        #     self._histories_end_index_num = self.lastest_histories_index_num
         self._histories_end_index_num = 0
 
     def _gen_histories_generator(self):
         for _, histories_period in self.histories.iterrows():
             yield histories_period
 
-    def _get_period_row(self):
+    def _get_period(self):
         return next(self.histories_generator)
 
     @property
@@ -71,7 +67,7 @@ class HistoricalDataFlows(DataFlows):
 
     def update(self):
         self._histories_end_index_num += 1
-        self.period_row = self._get_period_row()
+        self.period_row = self._get_period()
         # if self._histories_end_index_num == 19:
 
         # self.histories.drop(self.histories.index[0],axis=0,inplace=True)

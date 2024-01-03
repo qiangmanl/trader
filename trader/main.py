@@ -136,8 +136,10 @@ def run_strategy(Strategy,*args, **kwargs):
             try:
                 strategy.end()
                 looper.stop()
-            except SystemExit:
-                pass
+            except Exception as e:
+                logger.error("e")
+                exit()
+
     gen_all_symbol()
     if config.update_tasks_symbols:
         update_tasks_symbols(local.symbol_domain_map)
@@ -153,21 +155,24 @@ def run_strategy(Strategy,*args, **kwargs):
     strategy_price_reference = getattr(Strategy,"strategy_price_reference", None) \
         or config.setdefault("strategy_price_reference","current_period_close")
     
-    histories_length = getattr(Strategy,"histories_length", None) or \
-        config.setdefault("histories_length",20000)
+
 
     if Strategy.model == "historical":
+        #历史数据使用长度
+        histories_length = getattr(Strategy,"histories_length", None) or \
+            config.setdefault("histories_length",20000)
         logger.info(f"strategy initiated, node {local.node_id} start into historical model.")
+        order_config = get_historical_order_config()
         strategy = Strategy(*args, **kwargs)
-        if strategy.init_history(
+        strategy.init_history(
             index_name=index_name, 
             strategy_columns=strategy_columns,
             symbol_list=symbol_list,
-            histories_length=histories_length
-        ):  
-            order_config = get_historical_order_config()
-            strategy_heartbeat_config = get_strategy_heartbeat_config()
-            strategy.init_account( strategy_price_reference, **order_config )
+            histories_length=histories_length,
+            price_reference=strategy_price_reference,
+            order_config = order_config
+        )
+
     #         #注册心跳
 
     else:
@@ -176,10 +181,10 @@ def run_strategy(Strategy,*args, **kwargs):
         pdb.set_trace()
 
     strategy.init_symbol_property(strategy_columns)
+    #在策略执行前定义
     if getattr(strategy,"init_custom",None):
         strategy.init_custom(*args, **kwargs)
-
-
+    strategy_heartbeat_config = get_strategy_heartbeat_config()
     looper.register(
         run,
         strategy=strategy,

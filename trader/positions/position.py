@@ -115,8 +115,6 @@ class HistoricalPosition(DictBase):
             import pdb
             pdb.set_trace()
 
-
-
 class HistoricalPositionMap(DictBase):
     def __init__(self,symbols_property, **order_config):
         default_order_config = order_config["default"]
@@ -132,23 +130,3 @@ class HistoricalPositionMap(DictBase):
 
     def add_position(self, symbol, position:HistoricalPosition):
         self.__setattr__(symbol, position)
-
-
-
-
-
-# p = HistoricalPosition(20000,2,0,0,-1)
-
-# p.openning(21)
-# p.update(21)
-
-# p
-
-# p.update(22,increasing=1)
-# p.update(22)
-# p.update(22,increasing=1)
-
-# # 
-# 
-# 
-# 

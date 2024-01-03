@@ -48,11 +48,20 @@ class HistoricalStrategy(StrategyBase, SymbolsPropertyBase):
         self.positions = HistoricalPositionMap(self.symbols_property ,**order_config)
         self.orderbook.build_order_flows(self.current_datetime)
         
+    def init_flows(self, histories, histories_length, keys):
+        histories_data = pd.concat(histories, axis=1, keys=keys)
+        self.data_flows = HistoricalDataFlows(
+            histories_data,
+            length=histories_length
+        )
+
     def init_history(self,
             index_name:str="datetime",
             strategy_columns:list=['open', 'high', 'low', 'close', 'volume'],
             symbol_list:list=[],
-            histories_length=20000
+            histories_length=20000,
+            price_reference=None,
+            order_config = None,
         )->bool | None:
         """
             history file name:
@@ -72,19 +81,16 @@ class HistoricalStrategy(StrategyBase, SymbolsPropertyBase):
                     file = local.symbol_file_map[task_symbol]
                     history = csv_to_history(index_name, file, strategy_columns)
                     histories.append(history)
-                histories_data = pd.concat(histories, axis=1, keys=symbol_property_list)
-                self.data_flows = HistoricalDataFlows(
-                    histories_data,
-                    length=histories_length
-                )
+
                 self.symbols_property = symbol_property_list
+                self.init_flows(histories, histories_length, symbol_property_list)
+                self.init_account( price_reference, **order_config )
+
         except Exception as e:
             logger.error(e)
             exit()
     # local.data_flows.get_symbol_history("300878")
-        return True 
-
-
+        return True
 
     def get_position(self,symbol):
         return self.positions.__getattr__(symbol,{})

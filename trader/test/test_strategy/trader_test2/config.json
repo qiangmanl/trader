@@ -1,0 +1,48 @@
+{
+    "project": "trader",
+    "log": {
+        "path": "logs/trader.log",
+        "rotation": "500MB",
+        "encoding": "utf-8",
+        "enqueue": true,
+        "compression": "zip",
+        "retention": "10 days",
+        "level": "Debug"
+    },
+    "strategy_window": 100,
+    "strategy_index_name": "trade_time",
+    "strategy_columns": [
+        "open",
+        "high",
+        "low",
+        "close",
+        "vol"
+    ],
+    "strategy_price_reference": "current_period_close",
+    "historical_order": {
+        "default": {
+            "buying_fee": 0.003,
+            "selling_fee": 0.003,
+            "balance": 200000,
+            "leverage": 2,
+            "direction": -1,
+            "commission": 0.003
+        }
+    },
+    "strategy_heartbeat": {
+        "heartname": "strategy",
+        "print_interval": 60,
+        "interval": 1e-08
+    },
+    "symbol_length": 1,
+    "update_tasks_symbols": false,
+    "amqp_server": {
+        "broker": "amqp://guest@localhost//",
+        "backend": "rpc://"
+    },
+    "node_domain": "SZ",
+    "node_id": "yBhR7ZEmXXWYThv0zN",
+    "symbol_list": [
+        "000821"
+    ]
+}
