@@ -28,17 +28,17 @@ class SymbolsProperty:
         call strategy.{symbol}.{attribute} to get strategy.{attribute}.{symbol} attribute.
     """
    
-    def init_symbol_property(self, strategy_columns):
+    def init_symbol_objects(self):
         # self.property_dict = SymbolsPropertyDict()
-        for symbol in self.symbols_property:
+        for symbol in self.symbol_property:
             if getattr(self, symbol, None) == None:
                 self._set_symbol_object(symbol)
-                self._set_symbol_property(symbol,strategy_columns)
+                self._set_symbol_property(symbol)
                 self._update_symbol_history(symbol)
                 self._open_symbol_position(symbol)
 
-    def update_symbol_property(self):
-        for symbol in self.symbols_property:
+    def update_symbol_object(self):
+        for symbol in self.symbol_property:
             #更新每个symbol 的history
             #更新每个symbol的history必须在更新symbol报价之前执行
             self._update_symbol_history(symbol)
@@ -48,9 +48,9 @@ class SymbolsProperty:
         #为了让strategy可以直接通过symbol获得symbol相关属性
         setattr(self, symbol, type("SymbolObject", (), {})())
 
-    def _set_symbol_property(self, symbol, strategy_columns) -> None:
+    def _set_symbol_property(self, symbol ) -> None:
         #symbol的属性
-        setattr(getattr(self, symbol),'history' , pd.DataFrame(columns=strategy_columns))
+        setattr(getattr(self, symbol),'history' , pd.DataFrame(columns=self.strategy_columns))
         setattr(getattr(self, symbol),'position' ,getattr(self.positions, symbol))
         setattr(getattr(self, symbol),'property_dict' , SymbolsPropertyDict())
 

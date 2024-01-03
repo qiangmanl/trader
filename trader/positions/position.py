@@ -114,9 +114,9 @@ class HistoricalPosition(DictBase):
             pdb.set_trace()
 
 class HistoricalPositionMap(DictBase):
-    def __init__(self,symbols_property, **order_config):
+    def __init__(self,symbol_property, **order_config):
         default_order_config = order_config["default"]
-        for symbol in symbols_property:
+        for symbol in symbol_property:
             # if orderconfig.get(symbol):
             symbol_order_config = order_config.setdefault(symbol, default_order_config)
             symbol_order_config.setdefault("buying_fee",default_order_config["buying_fee"])

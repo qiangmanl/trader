@@ -11,7 +11,7 @@ def gen_all_symbol()->bool:
     files = os.listdir(ROW_DATA_DIR)
     for file in files:
         symbol, domain, _ = file.split('.') 
-        local.symbol_file_map[symbol] = file
+        local.symbol_file_map[f'{domain}{symbol}'] = file
         if not config.update_tasks_symbols:
             continue
         if local.symbol_domain_map.get(domain) == None:
@@ -118,7 +118,7 @@ def get_historical_order_config()->tuple:
     config.historical_order["default"] = default_config
     return config.historical_order
 
-def run_strategy(Strategy,*args, **kwargs):
+def run_strategy( Strategy,*args, **kwargs ):
     """
     Example:
     class MyStrategy(HistoricalStrategy):
@@ -126,7 +126,7 @@ def run_strategy(Strategy,*args, **kwargs):
         strategy_columns=['open', 'high', 'low', 'close', 'vol']
 
     """
-    async def run( strategy, **kwargs):
+    async def run( strategy , **kwargs):
         await asyncio.sleep(0)
         strategy.data_flows.update()
         strategy.update()
@@ -145,6 +145,7 @@ def run_strategy(Strategy,*args, **kwargs):
         update_tasks_symbols(local.symbol_domain_map)
     symbol_list = get_symbol_list(local.node_id, node_domain=local.node_domain)
     #策略内定义优先
+    strategy_heartbeat_config = get_strategy_heartbeat_config()
 
     index_name = getattr(Strategy,"index_name", None) or \
         config.setdefault("strategy_index_name","trader_name")
@@ -152,39 +153,45 @@ def run_strategy(Strategy,*args, **kwargs):
     strategy_columns    = getattr(Strategy,"strategy_columns", None) \
         or config.setdefault("strategy_columns",['open', 'high', 'low', 'close', 'vol'])
 
+
     strategy_price_reference = getattr(Strategy,"strategy_price_reference", None) \
         or config.setdefault("strategy_price_reference","current_period_close")
     
+    strategy = Strategy(*args, **kwargs)
 
+    #trading和historical通用的属性都在这里定义
+    strategy.before_init_define(
+        index_name      = index_name, 
+        strategy_columns= strategy_columns,
+        symbol_list     = symbol_list,
+        price_reference = strategy_price_reference
 
-    if Strategy.model == "historical":
+    )
+
+    if strategy.model == "historical":
+        #idea: check strategy healty here
         #历史数据使用长度
-        histories_length = getattr(Strategy,"histories_length", None) or \
+        histories_length = getattr(strategy,"histories_length", None) or \
             config.setdefault("histories_length",20000)
         logger.info(f"strategy initiated, node {local.node_id} start into historical model.")
         order_config = get_historical_order_config()
-        strategy = Strategy(*args, **kwargs)
+        
         strategy.init_strategy(
-            index_name=index_name, 
-            strategy_columns=strategy_columns,
-            symbol_list=symbol_list,
-            histories_length=histories_length,
-            price_reference=strategy_price_reference,
+            histories_length,
             order_config = order_config
         )
-
-    #         #注册心跳
 
     else:
         #real trading
         import pdb
         pdb.set_trace()
 
-    strategy.init_symbol_property(strategy_columns)
+    strategy.init_symbol_objects()
     #在策略执行前定义
     if getattr(strategy,"init_custom",None):
         strategy.init_custom(*args, **kwargs)
-    strategy_heartbeat_config = get_strategy_heartbeat_config()
+
+     #注册心跳
     looper.register(
         run,
         strategy=strategy,

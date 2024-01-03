@@ -27,7 +27,7 @@ def normalize_index(df,isdatetime="datetime"):
         return df
     # need check datetime
     logger.debug(df)
-    logger.error("datetime can't normalized")
+    logger.error(f'datetime can\'t normalized with index {df.index.name}')
     exit()
 
 class HistoricalStrategy(StrategyBase, SymbolsProperty):
@@ -37,58 +37,59 @@ class HistoricalStrategy(StrategyBase, SymbolsProperty):
     model = "historical"
     #策略运行时初始化一次，所有策略需要的配置都通过init传递
 
-    def init_account(self, price_reference, **order_config ):
+    def before_init_define(self,index_name, strategy_columns, symbol_list, price_reference):
+        self.index_name = index_name
+        self.strategy_columns = strategy_columns
         self.price_reference = price_reference
+        symbol_property_list = []
+        for task_symbol in symbol_list:
+            symbol_property_list.append(f'{self.domain}{task_symbol}')
+        self.symbol_property = symbol_property_list
+
+    def init_account(self, **order_config ):
         self.trading_signals = dict()
         # balance, commission, leverage, direction, price_reference,
         from trader.orderflows import HistoricalOrderBook
         self.orderbook = HistoricalOrderBook(
-            symbols_property=self.symbols_property
+            symbol_property=self.symbol_property
         )
-        self.positions = HistoricalPositionMap(self.symbols_property ,**order_config)
+        self.positions = HistoricalPositionMap(self.symbol_property ,**order_config)
         self.orderbook.build_order_flows(self.data_flows.current_datetime)
         
-    def init_flows(self, histories, histories_length, keys):
-        histories_data = pd.concat(histories, axis=1, keys=keys)
+    def init_flows(self, histories):
+        histories_data = pd.concat(histories, axis=1, keys=self.symbol_property)
         self.data_flows = HistoricalDataFlows(
             histories_data,
-            length=histories_length
+            length=self.histories_length
         )
 
     def init_strategy(self,
-            index_name:str="datetime",
-            strategy_columns:list=['open', 'high', 'low', 'close', 'volume'],
-            symbol_list:list=[],
-            histories_length=20000,
-            price_reference=None,
+            histories_length,
             order_config = None,
         )->bool | None:
         """
             history file name:
                 $symbol.$institution.csv
         """
-        
+
         #wait check index_name 
         #wait check strategy_columns
-
         #config symbol_list有特定的执行任务列表
+        self.histories_length = histories_length
         try:
-            if symbol_list:
-                histories = []
-                symbol_property_list = []
-                for task_symbol in symbol_list:
-                    symbol_property_list.append(f'{self.domain}{task_symbol}')
-                    file = local.symbol_file_map[task_symbol]
-                    history = csv_to_history(index_name, file, strategy_columns)
-                    histories.append(history)
+            histories = []
+            for symbol in self.symbol_property:
+                file = local.symbol_file_map[symbol]
+                history = csv_to_history(self.index_name, file, self.strategy_columns)
+                histories.append(history)
 
-                self.symbols_property = symbol_property_list
-                self.init_flows(histories, histories_length, symbol_property_list)
-                self.init_account( price_reference, **order_config )
+            self.init_flows(histories)
+            self.init_account( **order_config )
 
         except Exception as e:
             logger.error(e)
-            exit()
+            exit()          
+
     # local.data_flows.get_symbol_history("300878")
         return True
 
@@ -130,9 +131,9 @@ class HistoricalStrategy(StrategyBase, SymbolsProperty):
                 order.finish_historical_order()
                 #更新订单
                 position.update_position(order.price,trade_time=str_pd_datetime(trade_time), qty=order.fil_qty, action=order.action)
-            # symbols_property.remove(order.symbol)
+            # symbol_property.remove(order.symbol)
         order_rows = []
-        for symbol in self.symbols_property:
+        for symbol in self.symbol_property:
             position = self.get_position(symbol)
             price = self.get_symbol_quota(symbol)
             position.update_position(price, trade_time=str_pd_datetime(trade_time))
@@ -147,10 +148,9 @@ class HistoricalStrategy(StrategyBase, SymbolsProperty):
     def update(self)->bool:
         """
         """
-        self.update_symbol_property()
+        self.update_symbol_object()
         trading_signals = self.get_trading_signal()
         self.update_account(trading_signals, trade_time=self.data_flows.current_datetime)
-
 
     def make_trading_signal(self,tradetime, order):
         # 由于考虑同一时间节点存在多个买入信号，所以trading_signals 使用列表结构
@@ -163,17 +163,17 @@ class HistoricalStrategy(StrategyBase, SymbolsProperty):
     def sell(self, symbol ,qty):
         tradetime = self.next_period_index
         # tradetime_str = tradetime.strftime('%Y-%m-%d %H:%M:%S')
-        if symbol in self.symbols_property:
+        if symbol in self.symbol_property:
             order = Order(symbol=symbol, qty=qty, action="sell", order_type="historical")
             self.make_trading_signal(tradetime, order)
             logger.debug(f'current datetime:{self.data_flows.current_datetime} make a trading signal at {tradetime}')
         else:
-            logger.warning(f'symbol:"{symbol}" not on flows symbol {self.symbols_property}')
+            logger.warning(f'symbol:"{symbol}" not on flows symbol {self.symbol_property}')
 
     def buy(self, symbol ,qty):
-        if symbol in self.symbols_property:
+        if symbol in self.symbol_property:
             tradetime = self.next_period_index
             order = Order(symbol=symbol, qty=qty, action="buy", order_type="historical")
             self.make_trading_signal(tradetime, order)
         else:
-            logger.warning(f'symbol:"{symbol}" not on flows symbol {self.symbols_property}')
+            logger.warning(f'symbol:"{symbol}" not on flows symbol {self.symbol_property}')
