@@ -9,7 +9,6 @@ class HistoricalOrderBook:
         self.default_columns_data = {"price":[0], "qty":[0], "balance":[0]}
         self.symbols_property = symbols_property
         self.orders = SymbolsPropertyDict()
- 
         for symbol in self.symbols_property:
             self.orders.__setattr__(symbol, SymbolsPropertyDict())
         
@@ -23,9 +22,7 @@ class HistoricalOrderBook:
         order_flows = pd.concat(df_l, axis=1, keys=self.symbols_property)
         self.order_flows = order_flows
 
-    def get_symbol_price(self,symbol):
-        return self.orders[symbol]["price"]
 
-    def set_latest_price(self ,symbol, price):
-        self.orders.__getattr__(symbol).update({"price":price})
+
+
 

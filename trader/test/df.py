@@ -49,3 +49,27 @@ print(df)
 df_stock1 = pd.DataFrame({'price': [0], 'qty': [0], 'balance': [0]}, columns=['price', 'qty', 'balance'])
 {'price': [0], 'qty': [0], 'balance': [0]}
 ['price', 'qty', 'balance']
+
+
+class A:
+    @classmethod
+    def defx(cls,x):
+        cls.x = x
+        return cls
+    
+    @classmethod
+    @property
+    def addx(cls):
+        cls.x += 1
+        return cls.x
+
+x1 = A.f(1)
+x2 = A.f(2)
+id(x1) == id(x2)
+
+class B:
+    def defx(self,x) -> None:
+        self.x = x
+        return self
+
+b = B().defx(1)

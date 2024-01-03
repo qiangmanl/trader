@@ -4,7 +4,7 @@ from trader.utils.tools import str_pd_datetime
 from .base import StrategyBase, SymbolsPropertyBase
 from trader.const import ROW_DATA_DIR
 from trader import logger, local
-from trader.dataflows.historical import HistoricalFlows
+from trader.dataflows import HistoricalDataFlows
 from trader.orderflows import Order
 from trader.positions import HistoricalPositionMap
 
@@ -26,6 +26,7 @@ def normalize_index(df,isdatetime="datetime"):
         df.rename_axis('datetime', inplace=True)
         return df
     # need check datetime
+    logger.debug(df)
     logger.error("datetime can't normalized")
     exit()
 
@@ -51,14 +52,13 @@ class HistoricalStrategy(StrategyBase, SymbolsPropertyBase):
             index_name:str="datetime",
             strategy_columns:list=['open', 'high', 'low', 'close', 'volume'],
             symbol_list:list=[],
-            max_window=1000,
             histories_length=20000
         )->bool | None:
         """
             history file name:
                 $symbol.$institution.csv
         """
-        self.data_flows = HistoricalFlows(max_window=max_window)
+        
         #wait check index_name 
         #wait check strategy_columns
 
@@ -68,97 +68,83 @@ class HistoricalStrategy(StrategyBase, SymbolsPropertyBase):
                 histories = []
                 symbol_property_list = []
                 for task_symbol in symbol_list:
-                    symbol_property_list.append(f'{local.node_domain}{task_symbol}')
+                    symbol_property_list.append(f'{self.domain}{task_symbol}')
                     file = local.symbol_file_map[task_symbol]
                     history = csv_to_history(index_name, file, strategy_columns)
                     histories.append(history)
                 histories_data = pd.concat(histories, axis=1, keys=symbol_property_list)
-    
+                self.data_flows = HistoricalDataFlows(
+                    histories_data,
+                    length=histories_length
+                )
+                self.symbols_property = symbol_property_list
         except Exception as e:
             logger.error(e)
             exit()
-
-        self.data_flows.init_window(histories_data, local.node_domain, symbol_property_list, length=histories_length)
     # local.data_flows.get_symbol_history("300878")
         return True 
 
-    @property
-    def next_flows_period(self):
-        return self.data_flows.next_flows_period
+
 
     def get_position(self,symbol):
         return self.positions.__getattr__(symbol,{})
 
     @property
-    def histories(self):
-        return self.data_flows.full_window
+    def histories_index(self):
+        return self.data_flows.histories_index
     
     @property
     def domain(self):
-        return self.data_flows.domain
-    
-    @property
-    def symbols_property(self):
-        return self.data_flows.symbols_property
+        return local.node_domain
 
-    def calc_trading_price(self, symbol):
-        if self.price_reference == "current_period_close":
-            data = self.get_previous_history(symbol)
-            price = data.close
-        elif self.price_reference == "next_period_open":
-            data = self.get_current_history(symbol)
-            price = data.close
-        else:
-            logger.error("unknown  trading reference price")
-            exit()
+    def get_symbol_quota(self,symbol):
+        price =  getattr(self,symbol).property_dict["quota"]
+        if bool(price > 0) == False:
+            price = 0.000001
         return price
-
-    def end(self):
-        logger.info("historical strategy run end")
-        # await asyncio.sleep(0)
-        import pdb
-        pdb.set_trace()
-        exit()
-
-    def set_orderbook_prices(self):
-        for symbol in self.symbols_property:
-            price = self.calc_trading_price(symbol)
-            self.orderbook.set_latest_price(symbol, price)
+    
+    # def end(self):
+    #     logger.info("historical strategy run end")
+    #     # await asyncio.sleep(0)
+    #     import pdb
+    #     pdb.set_trace()
+    #     exit()
 
     def update_account(self,trading_signals, trade_time):
+        
         if len(trading_signals) > 0:
             for order in trading_signals:
-                price = self.orderbook.get_symbol_price(order.symbol)
+                price = self.get_symbol_quota(order.symbol)
                 if bool( price > 0) == False:
                     #此次交易信号作废
                     continue
                 position = self.get_position(order.symbol)
-                if position.is_openning == False:
-                    position.openning(price)
+                order.set_price(price)
+                #回测直接成交
+                order.finish_historical_order()
                 #更新订单
-                position.update_position(price, order.fil_qty, order.action, trade_time=str_pd_datetime(trade_time))
+                position.update_position(order.price,trade_time=str_pd_datetime(trade_time), qty=order.fil_qty, action=order.action)
+            # symbols_property.remove(order.symbol)
         order_rows = []
         for symbol in self.symbols_property:
             position = self.get_position(symbol)
-            price = self.orderbook.get_symbol_price(symbol)
+            price = self.get_symbol_quota(symbol)
+            position.update_position(price, trade_time=str_pd_datetime(trade_time))
             order_rows.extend([price, position.qty, position.value])
             #nan data  bool(nan) == False
         self.orderbook.order_flows.loc[trade_time] = pd.Series(order_rows)
 
-    def update(self)->bool:
-        """
-        """
-        # 信号触发 make_trading_signal
-
-        self.set_history()
-        # 更新订单前要先更新价格 因为 trading_signals是上一时刻产生的,此时的update是当前的时间
-        self.set_orderbook_prices()
-        trading_signals = self.get_trading_signal()
-        self.update_account(trading_signals, trade_time=self.current_datetime)
-
     def get_trading_signal(self):
         trading_signals = self.trading_signals.pop(self.current_datetime,[])
         return trading_signals
+    
+    def update(self)->bool:
+        """
+        """
+        self.update_symbol_property()
+        trading_signals = self.get_trading_signal()
+        self.update_account(trading_signals, trade_time=self.current_datetime)
+
 
     def make_trading_signal(self,tradetime, order):
         # 由于考虑同一时间节点存在多个买入信号，所以trading_signals 使用列表结构
@@ -169,8 +155,7 @@ class HistoricalStrategy(StrategyBase, SymbolsPropertyBase):
             self.trading_signals[tradetime].append(order)
 
     def sell(self, symbol ,qty):
-      
-        tradetime = self.next_flows_period
+        tradetime = self.next_period_index
         # tradetime_str = tradetime.strftime('%Y-%m-%d %H:%M:%S')
         if symbol in self.symbols_property:
             order = Order(symbol=symbol, qty=qty, action="sell", order_type="historical")
@@ -181,7 +166,7 @@ class HistoricalStrategy(StrategyBase, SymbolsPropertyBase):
 
     def buy(self, symbol ,qty):
         if symbol in self.symbols_property:
-            tradetime = self.next_flows_period
+            tradetime = self.next_period_index
             order = Order(symbol=symbol, qty=qty, action="buy", order_type="historical")
             self.make_trading_signal(tradetime, order)
         else:

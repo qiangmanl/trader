@@ -80,6 +80,7 @@ class HistoricalPosition(DictBase):
  
     def get_equity(self):
         # 一单的价差
+
         price_change = (self.latest_price - self.price) / (self.price + 0.00000000000000000001)
         equity = self.price  +  self.price * price_change * self.leverage * self.direction
         return equity
@@ -90,7 +91,9 @@ class HistoricalPosition(DictBase):
     def set_trade_time(self, trade_time):
         self.trade_time = trade_time
 
-    def update_position(self, price, qty, action, trade_time):
+    def update_position(self, price, trade_time, qty=None, action=None):
+        if trade_time == self.trade_time:
+            return 
         self.set_trade_time(trade_time)
         if self.is_openning:
             self.set_latest_price(price)

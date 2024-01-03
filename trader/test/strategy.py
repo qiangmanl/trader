@@ -1,64 +1,78 @@
+
+
+
+
+    
 import pandas as pd
-from trader.const import SEP
-class StrategyBase:
-    model = ""
-    history = None
 
-    @property 
-    def current_datetime(self):
-        # 当前策略执行到的日期在window最后
-        return self.history.index[-1]
+# 创建一个示例DataFrame
+data = {'Name': ['Alice', 'Bob', 'Charlie'],
+        'Age': [25, 30, 22],
+        'City': ['New York', 'San Francisco', 'Los Angeles']}
+
+df = pd.DataFrame(data)
+
+# 通过iterrows方法逐行生成DataFrame的数据
+def dataframe_generator():
+    for index, row in df.iterrows():
+        yield row
+
+# 另一个函数，接收生成器作为参数
+def process_generated_data(generator):
+    for data_row in generator():
+        # 在这里可以对每一行的数据进行处理
+        print(data_row)
+
+# 调用另一个函数并传递生成器
+process_generated_data(dataframe_generator)
+
+
+class DataFrameGenerator:
+    def __init__(self, dataframe):
+        self.dataframe = dataframe
+        self.generator = self.dataframe_generator()
+
+    def dataframe_generator(self):
+        for index, row in self.dataframe.iterrows():
+            yield index, row
 
     @property
-    def previous_datetime(self):
-       return self.history.index[-2] 
+    def get_next_row(self):
+        return next(self.generator)
+
+# 创建一个示例DataFrame
+data = {'Name': ['Alice', 'Bob', 'Charlie'],
+        'Age': [25, 30, 22],
+        'City': ['New York', 'San Francisco', 'Los Angeles']}
+
+df = pd.DataFrame(data)
+
+# 创建DataFrameGenerator实例
+df_generator = DataFrameGenerator(df)
+
+
+
+class DataFrameGenerator:
+    def __init__(self, dataframe):
+        self.dataframe = dataframe
+        self.generator = self.dataframe_generator()
+
+        
+
+    def dataframe_generator(self):
+        for index, row in self.dataframe.iterrows():
+            yield index, row
 
     @property
-    def today(self):
-        return self.current_datetime.date()
+    def get_next_row(self):
+        return next(self.generator)
 
-    @property
-    def current_time(self):
-        return self.current_datetime.time()
+# 创建一个示例DataFrame
+data = {'Name': ['Alice', 'Bob', 'Charlie'],
+        'Age': [25, 30, 22],
+        'City': ['New York', 'San Francisco', 'Los Angeles']}
 
-    @property
-    def datetime_period(self):
-        return self.current_datetime - self.history.index[-2]
-    
-    @property
-    def next_period(self):
-        return self.current_datetime + self.datetime_period
-    
-    def get_previous_history(self, symbol:str) -> pd.core.series.Series:
-        data = self.history[f'{symbol}'].loc[self.previous_datetime]
-        return data
-    
-    def get_current_history(self, symbol:str) -> pd.core.series.Series:
-        data = self.history[f'{symbol}'].loc[self.current_time]
-        return data
-    
+df = pd.DataFrame(data)
 
-
-
-    
-
-class Position:
-    def __init__(self):
-        self.a = {}
-        self.b = {}
-        self.c = {}
-# from trader.utils.tools import gen_random_id
-
-
-class A(DictBase,StrategyBase):
-    def __init__(self):
-        self.p = Position()
-
-
-class B(A):
-    pass
-
-b = B()
-b.set_symbols()
-
-
+# 创建DataFrameGenerator实例
+df_generator = DataFrameGenerator(df)

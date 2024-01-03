@@ -210,8 +210,7 @@ symbol_task_pool = SymbolTaskPool()
 def update_symbols(**domain_map):
     try:
         symbol_task_pool.update_symbol_map(**domain_map)
-        print(symbol_task_pool)
-        return True, None  
+        return symbol_task_pool.symbol_map, None  
     except Exception as e:
         return '' , e
 

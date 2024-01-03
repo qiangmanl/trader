@@ -1,61 +1,70 @@
+
+
 from trader.utils.base import DictBase
 
 class Order(DictBase):
-    
-    def __init__(self, symbol="", action="", qty=0, price=0, order_type=""):
+
+    @classmethod
+    def create(cls, symbol="", action="", qty=0, order_type=""):
         """
         action: buy||sell
         status :["pending","partially_executed","finished","cancel"]
         order_type:"market" ||||| historical
         direction  1 : long, -1 : short
         """
+        cls.symbol = symbol
+        cls.action = action
+        cls.price = None
+        cls.qty = qty or 0.00000000001
+        cls.order_type = order_type
+        cls.status = 'pending'
+        cls.fil_qty = 0 
+        cls.qty_filled_rate = 0.9
 
-        self.symbol = symbol
-        self.action = action
-        self.qty = qty or 0.0000000001
-        self.price = price
-        self.order_type = order_type
-        self.status = 'pending'
-        self.fil_qty = 0 
-        self.qty_filled_rate = 0.9
+        return cls
+    
+    @classmethod
+    def finish_historical_order(cls):
+        cls.filling_qty(cls.qty)
 
-    def finish_historical_order(self):
-        self.filling_qty(self.qty)
-
+    @classmethod
     @property
-    def locked(self):
-        return self.status  in ["cancel","finished"]
+    def locked(cls):
+        return cls.status  in ["cancel","finished"]
+    
+    @classmethod
+    def set_price(cls, price):
+        if not cls.locked and cls.status == "pending":
+            cls.price = price 
 
-    def set_price(self, price):
-        if not self.locked and self.status == "pending":
-            self.price = price 
+    @classmethod
+    def set_status(cls, status):
+        if not cls.locked:
+            cls.status=status 
 
-    def set_status(self, status):
-        if not self.locked:
-            self.update(status=status) 
-
-
-    def filling_qty(self, qty):
-        #self.qty是目标完成的数量,self.fil_qty 是已经完成的数量,回测型策略订单直接fill self.qty的数量，以完成交易
-        if qty > self.qty:
+    @classmethod
+    def filling_qty(cls, qty):
+        #cls.qty是目标完成的数量,cls.fil_qty 是已经完成的数量,回测型策略订单直接fill cls.qty的数量，以完成交易
+        if qty > cls.qty:
             return 
-        if not self.locked:
-            if (qty + self.fil_qty <= self.qty) and (self.qty_execute_rate < self.qty_filled_rate):
-                self.fil_qty += qty
-                if self.qty_execute_rate > self.qty_filled_rate:
-                    self.set_status("finished")
+        if not cls.locked:
+            if (qty + cls.fil_qty <= cls.qty) and (cls.qty_execute_rate() < cls.qty_filled_rate):
+                cls.fil_qty += qty
+                if cls.qty_execute_rate() > cls.qty_filled_rate:
+                    cls.set_status("finished")
                 else:
-                    self.set_status("partially_executed")
+                    cls.set_status("partially_executed")
             else:
-                self.set_status("finished")
+                cls.set_status("finished")
 
-    def cancel_order(self):
-        if self.status == "pending":
-            self.set_status("cancel")
+    @classmethod
+    def cancel_order(cls):
+        if cls.status == "pending":
+            cls.set_status("cancel")
 
-    @property
-    def qty_execute_rate(self):
-        return self.fil_qty / self.qty
+    @classmethod
+    def qty_execute_rate(cls):
+        return cls.fil_qty / cls.qty
 
 
 # class OrdersBook(dict):
@@ -90,5 +99,7 @@ class Order(DictBase):
 #             order  =  self[order_id]
 #             if not order.locked:
 #                 order.set_status(status)
+
+
 
 

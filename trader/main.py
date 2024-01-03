@@ -12,7 +12,7 @@ def gen_all_symbol()->bool:
     for file in files:
         symbol, domain, _ = file.split('.') 
         local.symbol_file_map[symbol] = file
-        if config.update_tasks_symbols == None:
+        if not config.update_tasks_symbols:
             continue
         if local.symbol_domain_map.get(domain) == None:
             local.symbol_domain_map[domain] = []
@@ -23,7 +23,7 @@ def update_tasks_symbols(domain_map):
     if local.node_id == ADMIN_NODE_ID:
         success, err = tasks.update_symbols.delay(**domain_map).get()
         if success:
-            logger.debug("update_tasks_symbols success")
+            logger.debug(f"update_tasks_symbols :{success}")
             config.update(False,update_tasks_symbols=False) 
         else:
             logger.error(err)
@@ -127,20 +127,22 @@ def run_strategy(Strategy,*args, **kwargs):
 
     """
     async def run( strategy, **kwargs):
-        # await asyncio.sleep(0)
-        if strategy.data_flows.window_slided_end == False:
-            strategy.data_flows.window_sliding()
+        await asyncio.sleep(0)
+        strategy.data_flows.update()
         strategy.update()
-        await strategy.start()
-        # else:
-        #     strategy.end()
-
+        strategy.start()
+        #不做修改
+        if strategy.data_flows.slided_end:
+            try:
+                strategy.end()
+                looper.stop()
+            except SystemExit:
+                pass
     gen_all_symbol()
     if config.update_tasks_symbols:
         update_tasks_symbols(local.symbol_domain_map)
     symbol_list = get_symbol_list(local.node_id, node_domain=local.node_domain)
     #策略内定义优先
-
 
     index_name = getattr(Strategy,"index_name", None) or \
         config.setdefault("strategy_index_name","trader_name")
@@ -150,11 +152,10 @@ def run_strategy(Strategy,*args, **kwargs):
 
     strategy_price_reference = getattr(Strategy,"strategy_price_reference", None) \
         or config.setdefault("strategy_price_reference","current_period_close")
- 
-    histories_length = getattr(Strategy,"histories_length", 20000) or \
-        config.setdefault("strategy_histories_length","histories_length")
     
-    max_window = getattr(Strategy,"strategy_window", None) or config.setdefault("strategy_window", 500)
+    histories_length = getattr(Strategy,"histories_length", None) or \
+        config.setdefault("histories_length",20000)
+
     if Strategy.model == "historical":
         logger.info(f"strategy initiated, node {local.node_id} start into historical model.")
         strategy = Strategy(*args, **kwargs)
@@ -162,26 +163,30 @@ def run_strategy(Strategy,*args, **kwargs):
             index_name=index_name, 
             strategy_columns=strategy_columns,
             symbol_list=symbol_list,
-            max_window=max_window,
             histories_length=histories_length
         ):  
             order_config = get_historical_order_config()
             strategy_heartbeat_config = get_strategy_heartbeat_config()
             strategy.init_account( strategy_price_reference, **order_config )
     #         #注册心跳
-            looper.register(
-                run,
-                strategy=strategy,
-                heartname=strategy_heartbeat_config["heartname"],
-                interval=strategy_heartbeat_config["interval"],
-                print_interval=strategy_heartbeat_config["print_interval"]
-            )
+
     else:
         #real trading
         import pdb
         pdb.set_trace()
 
     strategy.init_symbol_property(strategy_columns)
+    if getattr(strategy,"init_custom",None):
+        strategy.init_custom(*args, **kwargs)
+
+
+    looper.register(
+        run,
+        strategy=strategy,
+        heartname=strategy_heartbeat_config["heartname"],
+        interval=strategy_heartbeat_config["interval"],
+        print_interval=strategy_heartbeat_config["print_interval"]
+    )
     looper.start()
 
 

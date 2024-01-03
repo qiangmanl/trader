@@ -1,1 +1,1 @@
-from .historical import HistoricalFlows
+from .historical import HistoricalDataFlows
