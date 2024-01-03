@@ -1,8 +1,6 @@
 from collections import deque
 from trader.utils.base import DictBase
 
-
-
 class HistoricalPosition(DictBase):
     """v0.0.3
     p = HistoricalPosition()

@@ -1,24 +1,6 @@
+from .base import DataFlows, DatetimeProperty
 
-class DataFlows:
-    def __init__(self)->None:
-        self.histories = None
-        self.initiated = False
-        self.lastest_histories_index_num = None
-        self.window_start_index = 0
-
-    def _get_period(self):
-        raise NotImplementedError("not _get_period_row implemented")
-
-    @property
-    def period(self):
-        raise NotImplementedError("not period implemented")
-    
-    @property
-    def next_period_index(self):
-        raise NotImplementedError("not next_period_index implemented")
-    
-
-class HistoricalDataFlows(DataFlows):
+class HistoricalDataFlows(DataFlows, DatetimeProperty):
     def __init__(self,histories_data, length) -> None:
         super().__init__()
         self.initiated = True

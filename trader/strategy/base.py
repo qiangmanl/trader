@@ -1,57 +1,29 @@
 
 import pandas as pd
-
 from trader.utils.base import SymbolsPropertyDict
+
 
 class StrategyBase:
     model = ""
     histories = None
-
-
     def start(self):
         raise NotImplementedError("not start implemented")
-
 
     def end(self):
         raise NotImplementedError("not end implemented")
     
-    @property 
-    def current_datetime(self):
-        # 当前策略执行到的日期在window最后
-        return self.data_flows.current_datetime_index
-
-    @property
-    def next_period_index(self):
-        return self.data_flows.next_period_index
-
-    @property
-    def previous_datetime(self):
-       return self.data_flows.previous_datetime_index
-
-    @property
-    def today(self):
-        return self.current_datetime.date()
-    
-    @property
-    def yesterday(self):
-        return self.today - pd.Timedelta(days=1)
-
-
-    @property
-    def current_time(self):
-        return self.current_datetime.time()
-    
+    def init_strategy(self):
+        raise NotImplementedError("not init_strategy implemented") 
     
     def get_previous_history(self, symbol:str) -> pd.core.series.Series:
-        data = getattr(self,symbol).history.loc[self.previous_datetime]
+        data = getattr(self,symbol).history.loc[self.data_flows.previous_datetime]
         return data
     
     def get_current_history(self, symbol:str) -> pd.core.series.Series:
-        data = getattr(self,symbol).history.loc[self.current_datetime]
+        data = getattr(self,symbol).history.loc[self.data_flows.current_datetime]
         return data
     
-
-class SymbolsPropertyBase:
+class SymbolsProperty:
     """
         call strategy.{symbol}.{attribute} to get strategy.{attribute}.{symbol} attribute.
     """
@@ -103,15 +75,6 @@ class SymbolsPropertyBase:
         price = self.get_current_history(symbol)["close"]
         getattr(self, symbol).position.openning(price)
 
-# self.SZ000676.history
-
-# self.set_latest_price("SZ000676",12.1)
-
-# id(self.SZ000676.history)
-# id(self.history.SZ000676)
-
-# id(self.SZ000676.price)
-# id(self.orderbook.price_reference.SZ000676)
 
 
 

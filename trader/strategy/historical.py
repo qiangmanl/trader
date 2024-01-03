@@ -1,7 +1,7 @@
 
 import pandas as pd
 from trader.utils.tools import str_pd_datetime
-from .base import StrategyBase, SymbolsPropertyBase
+from .base import StrategyBase, SymbolsProperty
 from trader.const import ROW_DATA_DIR
 from trader import logger, local
 from trader.dataflows import HistoricalDataFlows
@@ -30,7 +30,7 @@ def normalize_index(df,isdatetime="datetime"):
     logger.error("datetime can't normalized")
     exit()
 
-class HistoricalStrategy(StrategyBase, SymbolsPropertyBase):
+class HistoricalStrategy(StrategyBase, SymbolsProperty):
     """
     price_reference :"current_period_close"|"next_period_open"
     """
@@ -46,7 +46,7 @@ class HistoricalStrategy(StrategyBase, SymbolsPropertyBase):
             symbols_property=self.symbols_property
         )
         self.positions = HistoricalPositionMap(self.symbols_property ,**order_config)
-        self.orderbook.build_order_flows(self.current_datetime)
+        self.orderbook.build_order_flows(self.data_flows.current_datetime)
         
     def init_flows(self, histories, histories_length, keys):
         histories_data = pd.concat(histories, axis=1, keys=keys)
@@ -55,7 +55,7 @@ class HistoricalStrategy(StrategyBase, SymbolsPropertyBase):
             length=histories_length
         )
 
-    def init_history(self,
+    def init_strategy(self,
             index_name:str="datetime",
             strategy_columns:list=['open', 'high', 'low', 'close', 'volume'],
             symbol_list:list=[],
@@ -141,7 +141,7 @@ class HistoricalStrategy(StrategyBase, SymbolsPropertyBase):
         self.orderbook.order_flows.loc[trade_time] = pd.Series(order_rows)
 
     def get_trading_signal(self):
-        trading_signals = self.trading_signals.pop(self.current_datetime,[])
+        trading_signals = self.trading_signals.pop(self.data_flows.current_datetime,[])
         return trading_signals
     
     def update(self)->bool:
@@ -149,7 +149,7 @@ class HistoricalStrategy(StrategyBase, SymbolsPropertyBase):
         """
         self.update_symbol_property()
         trading_signals = self.get_trading_signal()
-        self.update_account(trading_signals, trade_time=self.current_datetime)
+        self.update_account(trading_signals, trade_time=self.data_flows.current_datetime)
 
 
     def make_trading_signal(self,tradetime, order):
@@ -166,7 +166,7 @@ class HistoricalStrategy(StrategyBase, SymbolsPropertyBase):
         if symbol in self.symbols_property:
             order = Order(symbol=symbol, qty=qty, action="sell", order_type="historical")
             self.make_trading_signal(tradetime, order)
-            logger.debug(f'current datetime:{self.current_datetime} make a trading signal at {tradetime}')
+            logger.debug(f'current datetime:{self.data_flows.current_datetime} make a trading signal at {tradetime}')
         else:
             logger.warning(f'symbol:"{symbol}" not on flows symbol {self.symbols_property}')
 

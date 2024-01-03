@@ -164,7 +164,7 @@ def run_strategy(Strategy,*args, **kwargs):
         logger.info(f"strategy initiated, node {local.node_id} start into historical model.")
         order_config = get_historical_order_config()
         strategy = Strategy(*args, **kwargs)
-        strategy.init_history(
+        strategy.init_strategy(
             index_name=index_name, 
             strategy_columns=strategy_columns,
             symbol_list=symbol_list,
