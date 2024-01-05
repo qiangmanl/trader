@@ -30,7 +30,7 @@ class SymbolsProperty:
    
     def init_symbol_objects(self):
         # self.property_dict = SymbolsPropertyDict()
-        for symbol in self.symbol_property:
+        for symbol in self.symbol_objects:
             if getattr(self, symbol, None) == None:
                 self._set_symbol_object(symbol)
                 self._set_symbol_property(symbol)
@@ -38,7 +38,7 @@ class SymbolsProperty:
                 self._open_symbol_position(symbol)
 
     def update_symbol_object(self):
-        for symbol in self.symbol_property:
+        for symbol in self.symbol_objects:
             #更新每个symbol 的history
             #更新每个symbol的history必须在更新symbol报价之前执行
             self._update_symbol_history(symbol)

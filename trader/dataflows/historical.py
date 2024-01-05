@@ -1,3 +1,4 @@
+from trader import logger
 from .base import DataFlows, DatetimeProperty
 
 class HistoricalDataFlows(DataFlows, DatetimeProperty):
@@ -8,6 +9,8 @@ class HistoricalDataFlows(DataFlows, DatetimeProperty):
         self.histories_generator = self._gen_histories_generator()
         #为了时间同步,也为了尽早更新recently_period
         self.period_row = self._get_period()
+        logger.debug(f'DataFlows initiate: \n {self.period_row}'
+                    )
         self.histories_index = self.histories.index
         self.lastest_histories_index_num = len(self.histories_index)
         self._histories_end_index_num = 0

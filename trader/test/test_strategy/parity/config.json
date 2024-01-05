@@ -1,5 +1,6 @@
 {
-    "project": "trader",
+    "project": "parity",
+    "kind": "trader",
     "log": {
         "rotation": "500MB",
         "encoding": "utf-8",
@@ -25,14 +26,12 @@
         "interval": 1e-08
     },
     "histories_length": 2000,
-    "update_tasks_symbols": false,
+    "update_local_symbols": false,
     "amqp_server": {
         "broker": "amqp://guest@localhost//",
         "backend": "rpc://"
     },
-    "node_domain": "SZ",
     "node_id": "yBhR7ZEmXXWYThv0zN",
-    "symbol_list": [
-        "parity2"
-    ]
+    "node_domain": "default",
+    "catch_new_tasks": 1
 }

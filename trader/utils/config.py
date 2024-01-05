@@ -3,21 +3,19 @@ import json
 
 from trader.utils.base import DictBase
 
-class ConfigBase(DictBase):
-    def __init__(self):
-        self.configures = {}
+# class ConfigBase(DictBase):
+#     def __init__(self):
+#         self.configures = {}
 
 
+class Config(DictBase):
 
-class Config(ConfigBase):
-
-    def __init__(self, config_file="config.json"):
+    def __init__(self, config_file="config.json") -> None:
         """ Load config file.
 
         Args:
             config_file: config json file.
         """
-
         
         self.config_file = '{}{}{}'.format(os.path.abspath(""),os.sep,config_file)
         if config_file:
@@ -42,7 +40,7 @@ class Config(ConfigBase):
         
         
 
-    def _update_file_config(self, update_fields):
+    def _update_file_config(self, update_fields) -> None:
         """ Update config attributes.
 
         Args:
@@ -51,7 +49,7 @@ class Config(ConfigBase):
         for k, v in update_fields.items():
             self.__setattr__(k, v)
 
-    def update(self, temporary=True , **kwargs):
+    def update(self, temporary=True , **kwargs) -> None:
         """
         Usage:
             config.update(False,x=11)
@@ -62,7 +60,13 @@ class Config(ConfigBase):
                 self.configures[k] = v
                 self.dump(inplace=True)
 
-    def dump(self,inplace:bool=False):
+    def remove(self,item,temporary=True) -> None:
+        if item in self.configures:
+            del self.configures[item]
+            if temporary == False:
+                self.dump(inplace=True)
+
+    def dump(self,inplace:bool=False) -> None:
         if inplace:
             config_file = self.config_file
         else:

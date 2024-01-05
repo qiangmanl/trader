@@ -1,65 +1,36 @@
 import asyncio
 import os
 from trader.amqp_server import tasks
-from trader.const import ADMIN_NODE_ID 
 from trader import local, logger, config
-from trader.const import ROW_DATA_DIR
 from trader.heartbeat import looper
 
-def gen_all_symbol()->bool:
-    #从文件中获取symbol
-    files = os.listdir(ROW_DATA_DIR)
-    for file in files:
-        symbol, domain, _ = file.split('.') 
-        local.symbol_file_map[f'{domain}{symbol}'] = file
-        if not config.update_tasks_symbols:
-            continue
-        if local.symbol_domain_map.get(domain) == None:
-            local.symbol_domain_map[domain] = []
-        local.symbol_domain_map[domain].append(symbol)
 
 def update_tasks_symbols(domain_map):
+    success, err = tasks.update_symbols.delay(**domain_map).get()
+    if success:
+        logger.debug(f"update_local_symbols :{success}")
+        config.update(False,update_local_symbols=False) 
+    else:
+        logger.error(err)
+        exit()
 
-    if local.node_id == ADMIN_NODE_ID:
-        success, err = tasks.update_symbols.delay(**domain_map).get()
-        if success:
-            logger.debug(f"update_tasks_symbols :{success}")
-            config.update(False,update_tasks_symbols=False) 
-        else:
-            logger.error(err)
-            exit()
-
-def get_task_symbols_by_list(node_id, node_domain, symbol_list):
+def get_tasks_symbol_by_list(node_id, node_domain, symbol_list):
     success, err = tasks.get_symbol_list_by_list.delay(node_id, node_domain, symbol_list).get()
     if success:
-        logger.debug(f'get_task_symbols_by_list success:{success}')
+        logger.debug(f'get_tasks_symbol_by_list success:{success}')
         return success
     else:
         logger.error(err)
         return []
 
-def get_task_symbols_by_length(node_id, node_domain, length):
+def get_tasks_symbol_by_catch(node_id, node_domain, length):
     success, err = tasks.get_symbol_list_by_length.delay(node_id, node_domain, length).get()
     if success:
-        logger.debug(f'get_task_symbols_by_length success:{success}')
+        logger.debug(f'get_tasks_symbol_by_catch success:{success}')
         return success
     else:
         logger.error(err)
         return []
-
-def get_symbol_list(node_id, node_domain):
-    if config.symbol_length:
-        symbol_list = get_task_symbols_by_length(node_id, node_domain, config.symbol_length)
-    elif config.symbol_list:
-        symbol_list = get_task_symbols_by_list(node_id, node_domain, config.symbol_list)
-    else:
-        symbol_list = []
-    config.update(temporary=False,symbol_list=symbol_list)
-    if symbol_list == []:
-        logger.error("can get any symbol to list, set admin or symbol_length or update_tasks_symbols?")
-        exit()
-    return symbol_list
-
 
 def get_strategy_heartbeat_config()->tuple:
     strategy_heartbeat_config = config.setdefault("strategy_heartbeat", {})
@@ -67,39 +38,6 @@ def get_strategy_heartbeat_config()->tuple:
     config.strategy_heartbeat.setdefault("interval",0.1)
     config.strategy_heartbeat.setdefault("heartname","strategy")
     return strategy_heartbeat_config
-
-def translate_small_rate(word):
-    if isinstance(word,(int,float)) and word < 1:
-        return word
-    elif isinstance(word,str):
-        if word[-1] == "%":
-            word = float(word[:-1])/100
-            return word
-        else:
-            try:
-                word = float(word)
-                if word < 0:
-                    return word
-                else:
-                    return
-            except ValueError:
-               return
-            finally:
-                return
-    else:
-        return
-
-
-def translate_balance(balance):
-    if isinstance(balance,(int,float)):
-        return balance
-    else:
-        try:
-            balance = float(balance) 
-            return balance
-        except ValueError:
-            logger.error("translate_balance error")
-
 
 #策略初始化配置
 def get_historical_order_config()->tuple:
@@ -114,11 +52,28 @@ def get_historical_order_config()->tuple:
     default_config.setdefault("commission",0.003)
     default_config.setdefault("leverage",1)
     default_config.setdefault("direction",1)
-    
     config.historical_order["default"] = default_config
     return config.historical_order
 
-def run_strategy( Strategy,*args, **kwargs ):
+def get_task_symbols(node_id, node_domain)->list:
+    if config.catch_new_tasks:
+        symbol_list = get_tasks_symbol_by_catch(node_id, node_domain, config.catch_new_tasks)
+        if symbol_list:
+            config.remove("catch_new_tasks",temporary=False)
+    elif config.tasks_symbols:
+        if config.node_stand_alone:
+            symbol_list = config.tasks_symbols
+        else:
+            symbol_list = get_tasks_symbol_by_list(node_id, node_domain, config.tasks_symbols)
+    else:
+        symbol_list = []
+    config.update(temporary=False,tasks_symbols=symbol_list)
+    if symbol_list == []:
+        logger.error("can get any symbol to list, set admin and update_local_symbols?")
+        exit()
+    return symbol_list
+
+def run_strategy( Strategy,*args, **kwargs ) -> None:
     """
     Example:
     class MyStrategy(HistoricalStrategy):
@@ -140,10 +95,10 @@ def run_strategy( Strategy,*args, **kwargs ):
                 logger.error("e")
                 exit()
 
-    gen_all_symbol()
-    if config.update_tasks_symbols:
+    if config.update_local_symbols:
+        logger.debug(f'update_tasks_symbols local.symbol_domain_map:{local.symbol_domain_map}')
         update_tasks_symbols(local.symbol_domain_map)
-    symbol_list = get_symbol_list(local.node_id, node_domain=local.node_domain)
+    symbol_list = get_task_symbols(local.node_id, node_domain=local.node_domain)
     #策略内定义优先
     strategy_heartbeat_config = get_strategy_heartbeat_config()
 

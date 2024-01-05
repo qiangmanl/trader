@@ -1,17 +1,17 @@
-
+import os
 import pandas as pd
 from trader.utils.tools import str_pd_datetime
 from .base import StrategyBase, SymbolsProperty
-from trader.const import ROW_DATA_DIR
 from trader import logger, local
 from trader.dataflows import HistoricalDataFlows
 from trader.orderflows import Order
 from trader.positions import HistoricalPositionMap
 
 def csv_to_history(index_name, file, strategy_columns)->bool:
-    df = pd.read_csv(f'{ROW_DATA_DIR}/{file}')
+    df = pd.read_csv(f'{local.domain_dir}{os.sep}{file}')
     df = normalize_index(df, index_name)
     df = df.loc[:, strategy_columns]
+
     return df
 
 def normalize_index(df,isdatetime="datetime"):
@@ -41,23 +41,23 @@ class HistoricalStrategy(StrategyBase, SymbolsProperty):
         self.index_name = index_name
         self.strategy_columns = strategy_columns
         self.price_reference = price_reference
-        symbol_property_list = []
+        symbol_object_list = []
         for task_symbol in symbol_list:
-            symbol_property_list.append(f'{self.domain}{task_symbol}')
-        self.symbol_property = symbol_property_list
+            symbol_object_list.append(f'{task_symbol}')
+        self.symbol_objects = symbol_object_list
 
     def init_account(self, **order_config ):
         self.trading_signals = dict()
         # balance, commission, leverage, direction, price_reference,
         from trader.orderflows import HistoricalOrderBook
         self.orderbook = HistoricalOrderBook(
-            symbol_property=self.symbol_property
+            symbol_objects=self.symbol_objects
         )
-        self.positions = HistoricalPositionMap(self.symbol_property ,**order_config)
+        self.positions = HistoricalPositionMap(self.symbol_objects ,**order_config)
         self.orderbook.build_order_flows(self.data_flows.current_datetime)
         
     def init_flows(self, histories):
-        histories_data = pd.concat(histories, axis=1, keys=self.symbol_property)
+        histories_data = pd.concat(histories, axis=1, keys=self.symbol_objects)
         self.data_flows = HistoricalDataFlows(
             histories_data,
             length=self.histories_length
@@ -78,16 +78,18 @@ class HistoricalStrategy(StrategyBase, SymbolsProperty):
         self.histories_length = histories_length
         try:
             histories = []
-            for symbol in self.symbol_property:
-                file = local.symbol_file_map[symbol]
-                history = csv_to_history(self.index_name, file, self.strategy_columns)
+            for symbol in self.symbol_objects:
+                file_name = local.project_symbol_map[symbol]
+                history = csv_to_history(self.index_name, file_name, self.strategy_columns)
                 histories.append(history)
 
             self.init_flows(histories)
             self.init_account( **order_config )
 
         except Exception as e:
-            logger.error(e)
+            import pdb
+            pdb.set_trace()
+            logger.error(e.__repr__())
             exit()          
 
     # local.data_flows.get_symbol_history("300878")
@@ -109,13 +111,6 @@ class HistoricalStrategy(StrategyBase, SymbolsProperty):
         if bool(price > 0) == False:
             price = 0.000001
         return price
-    
-    # def end(self):
-    #     logger.info("historical strategy run end")
-    #     # await asyncio.sleep(0)
-    #     import pdb
-    #     pdb.set_trace()
-    #     exit()
 
     def update_account(self,trading_signals, trade_time):
         
@@ -131,9 +126,8 @@ class HistoricalStrategy(StrategyBase, SymbolsProperty):
                 order.finish_historical_order()
                 #更新订单
                 position.update_position(order.price,trade_time=str_pd_datetime(trade_time), qty=order.fil_qty, action=order.action)
-            # symbol_property.remove(order.symbol)
         order_rows = []
-        for symbol in self.symbol_property:
+        for symbol in self.symbol_objects:
             position = self.get_position(symbol)
             price = self.get_symbol_quota(symbol)
             position.update_position(price, trade_time=str_pd_datetime(trade_time))
@@ -163,17 +157,17 @@ class HistoricalStrategy(StrategyBase, SymbolsProperty):
     def sell(self, symbol ,qty):
         tradetime = self.next_period_index
         # tradetime_str = tradetime.strftime('%Y-%m-%d %H:%M:%S')
-        if symbol in self.symbol_property:
+        if symbol in self.symbol_objects:
             order = Order(symbol=symbol, qty=qty, action="sell", order_type="historical")
             self.make_trading_signal(tradetime, order)
             logger.debug(f'current datetime:{self.data_flows.current_datetime} make a trading signal at {tradetime}')
         else:
-            logger.warning(f'symbol:"{symbol}" not on flows symbol {self.symbol_property}')
+            logger.warning(f'symbol:"{symbol}" not on flows symbol {self.symbol_objects}')
 
     def buy(self, symbol ,qty):
-        if symbol in self.symbol_property:
+        if symbol in self.symbol_objects:
             tradetime = self.next_period_index
             order = Order(symbol=symbol, qty=qty, action="buy", order_type="historical")
             self.make_trading_signal(tradetime, order)
         else:
-            logger.warning(f'symbol:"{symbol}" not on flows symbol {self.symbol_property}')
+            logger.warning(f'symbol:"{symbol}" not on flows symbol {self.symbol_objects}')

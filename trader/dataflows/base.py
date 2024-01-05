@@ -40,7 +40,6 @@ class DatetimeProperty:
     def yesterday(self):
         return self.today - pd.Timedelta(days=1)
 
-
     @property
     def current_time(self):
         return self.current_datetime.time()

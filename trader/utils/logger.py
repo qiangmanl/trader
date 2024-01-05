@@ -5,10 +5,10 @@ class Logger:
     def __init__(self, 
         **kwargs
     ):
-        
         logger.remove()
         if kwargs == {}:
-            logger.add(sys.stderr, level="INFO")
+            level = "INFO"
+            logger.add(sys.stderr, level=level)
         else:
             level = kwargs.setdefault("level","INFO").upper()
             path = kwargs.get("path",None)
@@ -36,7 +36,8 @@ class Logger:
         self.warning = logger.warning
         self.error = logger.error
         self.exception = logger.exception
-        logger.debug(f'logger start {level} level mode')
+        if level == "DEBUG":
+            logger.debug(f'logger start {level} level mode')
         # logger.info(f'logger start {level} level mode')
         
     def prompt(self,courier="error"):
