@@ -1,5 +1,7 @@
 
 import pandas as pd
+from trader.orderflows import OrderBookPattern
+from trader.positions import HistoricalPosition, TradingPosition
 from trader.utils.base import SymbolsPropertyDict
 
 
@@ -29,7 +31,12 @@ class StrategyBase:
     def get_symbol_history(self, symbol:str) -> pd.core.frame.DataFrame:
         return getattr(self,symbol).history
     
-    
+    def get_symbol_position(self, symbol:str) -> HistoricalPosition | TradingPosition:
+        return getattr(self, symbol).position
+
+    def get_symbol_orderbook(self, symbol:str) -> pd.core.frame.DataFrame:
+        return getattr(self, symbol).orderbook
+
 class SymbolsProperty:
     """
         call strategy.{symbol}.{attribute} to get strategy.{attribute}.{symbol} attribute.
@@ -41,16 +48,16 @@ class SymbolsProperty:
             if getattr(self, symbol, None) == None:
                 self._set_symbol_object(symbol)
                 self._set_symbol_property(symbol)
-                self._update_symbol_history(symbol)
-                self._open_symbol_position(symbol)
+                self._set_symbol_history(symbol)
+                self._set_symbol_account(symbol)
 
     def update_symbol_object(self):
         for symbol in self.symbol_objects:
             #更新每个symbol 的history
             #更新每个symbol的history必须在更新symbol报价之前执行
-            self._update_symbol_history(symbol)
-            self._update_symbol_quota(symbol)
-
+            self._set_symbol_history(symbol)
+            self._set_symbol_quota(symbol)
+        
     def _set_symbol_object(self, symbol) -> None:
         #为了让strategy可以直接通过symbol获得symbol相关属性
         setattr(self, symbol, type("SymbolObject", (), {})())
@@ -60,6 +67,7 @@ class SymbolsProperty:
         setattr(getattr(self, symbol),'history' , pd.DataFrame(columns=self.strategy_columns))
         setattr(getattr(self, symbol),'position' ,getattr(self.positions, symbol))
         setattr(getattr(self, symbol),'property_dict' , SymbolsPropertyDict())
+        setattr(getattr(self, symbol),'orderbook' , pd.DataFrame(columns=OrderBookPattern.keys))
 
     def _get_quotation(self, symbol:str):
         match self.price_reference:
@@ -69,17 +77,21 @@ class SymbolsProperty:
                 price = self.get_current_history(symbol)["open"]
         return price
 
-    def _update_symbol_history(self, symbol):
+    def _set_symbol_history(self, symbol):
         self.get_symbol_history(symbol).loc[self.data_flows.current_period_index] = \
             self.get_symbol_period(symbol)
     #
-    def _update_symbol_quota(self, symbol):
+    def _set_symbol_quota(self, symbol):
             price = self._get_quotation(symbol)
             getattr(self,symbol).property_dict["quota"] = price
 
-    def _open_symbol_position(self, symbol):
+    def _set_symbol_account(self, symbol):
+        position = self.get_symbol_position(symbol)
         price = self.get_current_history(symbol)["close"]
-        getattr(self, symbol).position.openning(price)
+        position.open(price)
+        orderbook = self.get_symbol_orderbook(symbol)
+        orderbook.loc[self.data_flows.current_period_index] = \
+        OrderBookPattern.create(position).orderbook
 
 
 

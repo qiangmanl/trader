@@ -1,2 +1,1 @@
-from .orderbook import HistoricalOrderBook
-from .order import Order
+from .order import Order, OrderBookPattern

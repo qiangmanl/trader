@@ -58,37 +58,29 @@ class Order(DictBase):
         return self.fil_qty / self.qty
 
 
-# class OrdersBook(dict):
-#     # 有信号产生的订单，有可能未完成交易，也有可能存在多条订单,但这种情况一般只在实盘的时候存在
-#     def __init__(self,order_list_type):
-#         self.order_list_type = order_list_type
+class OrderBookPattern:
+    price = None
+    qty = None
+    value = None
+    @classmethod
+    def create(cls,position):
+        cls.price = position.latest_price
+        cls.qty = position.qty
+        cls.value = position.value
+
+        return cls
     
-#     def add_new_order(self,order_id:str, order:Order):
-#         self.update({order_id:[]})
-#         self[order_id].append(order)
+    @classmethod
+    @property
+    def orderbook(cls):
+        orderbook = {
+            "price" : cls.price,
+            "qty"   : cls.qty,
+            "value" : cls.value
+        }
+        return orderbook
 
-#     def add_order(self,order_id:str, order:Order):
-#         self[order_id].append(order)
-
-#     def update_order(self,order_id, order):
-#         if order_id in self:
-#             self.add_order(order_id, order=order)
-#         else:
-#             self.add_new_order(order_id,order=order)
-
-#     def sell(self,order_id, price, qty, order_type):
-#         order = Order(order_id, price=price,action="sell",qty=qty,order_type=order_type)
-#         self.update_order(order)
-
-
-#     def buy(self, order_id, price, qty, order_type):
-#         order = Order(order_id, price=price,action="buy",qty=qty,order_type=order_type)
-#         self.update_order(order)
-
-#     def update_status(self, order_id, status):
-#         if order_id in self:
-#             order  =  self[order_id]
-#             if not order.locked:
-#                 order.set_status(status)
-
-
+    @classmethod
+    @property
+    def keys(cls):
+        return list(cls.orderbook.keys())

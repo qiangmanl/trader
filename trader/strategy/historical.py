@@ -4,7 +4,7 @@ from trader.utils.tools import str_pd_datetime
 from .base import StrategyBase, SymbolsProperty
 from trader import logger, local
 from trader.dataflows import HistoricalDataFlows
-from trader.orderflows import Order
+from trader.orderflows import Order, OrderBookPattern
 from trader.positions import HistoricalPositionMap
 
 def csv_to_history(index_name, file, strategy_columns)->bool:
@@ -48,15 +48,9 @@ class HistoricalStrategy(StrategyBase, SymbolsProperty):
 
     def init_account(self, **order_config ):
         self.trading_signals = dict()
-        # balance, commission, leverage, direction, price_reference,
-        from trader.orderflows import HistoricalOrderBook
-        self.orderbook = HistoricalOrderBook(
-            symbol_objects=self.symbol_objects
-        )
         self.positions = HistoricalPositionMap(self.symbol_objects ,**order_config)
-        self.orderbook.build_order_flows(self.data_flows.current_datetime)
-        
-    def init_flows(self, histories):
+     
+    def init_data_flows(self, histories):
         histories_data = pd.concat(histories, axis=1, keys=self.symbol_objects)
         self.data_flows = HistoricalDataFlows(
             histories_data,
@@ -83,7 +77,7 @@ class HistoricalStrategy(StrategyBase, SymbolsProperty):
                 history = csv_to_history(self.index_name, file_name, self.strategy_columns)
                 histories.append(history)
 
-            self.init_flows(histories)
+            self.init_data_flows(histories)
             self.init_account( **order_config )
 
         except Exception as e:
@@ -126,14 +120,16 @@ class HistoricalStrategy(StrategyBase, SymbolsProperty):
                 order.finish_historical_order()
                 #更新订单
                 position.update_position(order.price,trade_time=str_pd_datetime(trade_time), qty=order.fil_qty, action=order.action)
-        order_rows = []
+
         for symbol in self.symbol_objects:
             position = self.get_position(symbol)
             price = self.get_symbol_quota(symbol)
             position.update_position(price, trade_time=str_pd_datetime(trade_time))
-            order_rows.extend([price, position.qty, position.value])
+            order_row = OrderBookPattern.create(position).orderbook
+            self.get_symbol_orderbook(symbol).loc[trade_time] = order_row
             #nan data  bool(nan) == False
-        self.orderbook.order_flows.loc[trade_time] = pd.Series(order_rows)
+        # import pdb
+        # pdb.set_trace()
 
     def get_trading_signal(self):
         trading_signals = self.trading_signals.pop(self.data_flows.current_datetime,[])
@@ -166,7 +162,7 @@ class HistoricalStrategy(StrategyBase, SymbolsProperty):
 
     def buy(self, symbol ,qty):
         if symbol in self.symbol_objects:
-            tradetime = self.next_period_index
+            tradetime = self.data_flows.next_period_index
             order = Order(symbol=symbol, qty=qty, action="buy", order_type="historical")
             self.make_trading_signal(tradetime, order)
         else:

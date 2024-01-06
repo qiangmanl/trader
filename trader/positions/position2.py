@@ -1,30 +1,20 @@
 from collections import deque
 from trader.utils.base import DictBase
 
-# asset = 1000000
-# class TotalAsset:
-#     asset = asset
-#     @classmethod
-#     def subtract(cls,asset):
-#         cls.asset -= asset
+asset = 1000000
 
-# class Position:
-#     def __init__(self):
-#         self.balance = 0
+class Account:
+    total_asset = asset
 
-#     def add_balance(self, balance):
-#         self.balance += balance
-#         TotalAsset.subtract(balance)
+    def __init__(self):
+        pass
 
-#     @property
-#     def asset(self):
-#         return TotalAsset.asset
+   
+    def assign_balance(self, symbol, balance):
+        self.total_asset -= balance
 
-# p1 = Position()
-# p1
-# p2 = Position()
 
-class HistoricalPosition(DictBase):
+class HistoricalLongPosition(DictBase):
     """v0.0.3
     p = HistoricalPosition()
     p.open(21)
@@ -35,13 +25,12 @@ class HistoricalPosition(DictBase):
 
     """
 
-    def __init__(self, balance, leverage, buying_fee, selling_fee ,direction, **kwargs):
+    def __init__(self, balance, leverage, buying_fee, selling_fee , **kwargs):
         #
         self.set_balance(balance)
         self.leverage = leverage
         self.increasing_fee = buying_fee
         self.reducing_fee   = selling_fee
-        self.direction = direction
         self.value = self.symbol_balance
         self.is_openning = False
         self.profit = 0
@@ -54,11 +43,11 @@ class HistoricalPosition(DictBase):
         self.equitys.append(self.get_equity())
         self.is_openning = True
         
-    def settlement(self):
-        if self.qty != 0:
-            self.reducing(self.qty)
+    def settlement_long(self):
+        if self.long_qty != 0:
+            self.long_reducing(self.long_qty)
         self.symbol_balance = self.value
-        self.profit = 0
+        self.long_profit = 0
 
 
     def set_balance(self, balance):

@@ -1,36 +1,12 @@
 import asyncio
 import os
-from trader.amqp_server import tasks
+
 from trader import local, logger, config
 from trader.heartbeat import looper
-
-
-def update_tasks_symbols(domain_map):
-    success, err = tasks.update_symbols.delay(**domain_map).get()
-    if success:
-        logger.debug(f"update_local_symbols :{success}")
-        config.update(False,update_local_symbols=False) 
-    else:
-        logger.error(err)
-        exit()
-
-def get_tasks_symbol_by_list(node_id, node_domain, symbol_list):
-    success, err = tasks.get_symbol_list_by_list.delay(node_id, node_domain, symbol_list).get()
-    if success:
-        logger.debug(f'get_tasks_symbol_by_list success:{success}')
-        return success
-    else:
-        logger.error(err)
-        return []
-
-def get_tasks_symbol_by_catch(node_id, node_domain, length):
-    success, err = tasks.get_symbol_list_by_length.delay(node_id, node_domain, length).get()
-    if success:
-        logger.debug(f'get_tasks_symbol_by_catch success:{success}')
-        return success
-    else:
-        logger.error(err)
-        return []
+from trader.utils.tasks_function import \
+    get_tasks_symbol_by_catch, \
+    get_tasks_symbol_by_list, \
+    update_tasks_symbols
 
 def get_strategy_heartbeat_config()->tuple:
     strategy_heartbeat_config = config.setdefault("strategy_heartbeat", {})
@@ -47,8 +23,8 @@ def get_historical_order_config()->tuple:
     """
     default_config = config.historical_order.get("default",{})
     #current_period_close:  结算参考价格是当天的close
-    default_config.setdefault("price_reference", "current_period_close")  
-    default_config.setdefault("balance",1000000)
+    #开仓的金额会从总账里扣除，所以所有的标的余额加起来不能超过总账,默认是平均分配，也可以按标的设置
+    default_config.setdefault("balance",10000)
     default_config.setdefault("commission",0.003)
     default_config.setdefault("leverage",1)
     default_config.setdefault("direction",1)
@@ -57,22 +33,38 @@ def get_historical_order_config()->tuple:
 
 def get_task_symbols(node_id, node_domain)->list:
     if config.catch_new_tasks:
-        symbol_list = get_tasks_symbol_by_catch(node_id, node_domain, config.catch_new_tasks)
+        symbol_list, err = get_tasks_symbol_by_catch(node_id, node_domain, config.catch_new_tasks)
         if symbol_list:
+            logger.debug(f'catch_new_tasks return:{symbol_list}')
             config.remove("catch_new_tasks",temporary=False)
-    elif config.tasks_symbols:
-        if config.node_stand_alone:
-            symbol_list = config.tasks_symbols
         else:
-            symbol_list = get_tasks_symbol_by_list(node_id, node_domain, config.tasks_symbols)
+            logger.error(f'catch_new_tasks error:{err}')
+
+    elif config.tasks_symbols:
+        symbol_list, err = get_tasks_symbol_by_list(node_id, node_domain, config.tasks_symbols)
+        if symbol_list:
+            logger.debug(f'get tasks_symbols return:{symbol_list}')
+        else:
+            logger.error(f'get tasks_symbols error:{err}')
+
     else:
         symbol_list = []
     config.update(temporary=False,tasks_symbols=symbol_list)
     if symbol_list == []:
-        logger.error("can get any symbol to list, set admin and update_local_symbols?")
+        logger.error("can get any symbol to list, have not set tasks_symbols or update_local_symbols in config?")
         exit()
     return symbol_list
 
+def update_local_symbols():
+    logger.debug(f'update_tasks_symbols  local.symbol_domain_map:{local.symbol_domain_map}')
+    success,err = update_tasks_symbols(local.symbol_domain_map)
+    if success:
+        logger.debug(f'update_tasks_symbols return :{success}')
+        config.update(False,update_local_symbols=False) 
+    else:
+        logger.error(err)
+        exit()
+        
 def run_strategy( Strategy,*args, **kwargs ) -> None:
     """
     Example:
@@ -96,9 +88,12 @@ def run_strategy( Strategy,*args, **kwargs ) -> None:
                 exit()
 
     if config.update_local_symbols:
-        logger.debug(f'update_tasks_symbols local.symbol_domain_map:{local.symbol_domain_map}')
-        update_tasks_symbols(local.symbol_domain_map)
-    symbol_list = get_task_symbols(local.node_id, node_domain=local.node_domain)
+        update_local_symbols()
+
+    if config.node_stand_alone:
+        symbol_list = config.tasks_symbols
+    else:
+        symbol_list = get_task_symbols(local.node_id, node_domain=local.node_domain)
     #策略内定义优先
     strategy_heartbeat_config = get_strategy_heartbeat_config()
 
@@ -125,6 +120,7 @@ def run_strategy( Strategy,*args, **kwargs ) -> None:
 
     if strategy.model == "historical":
         #idea: check strategy healty here
+
         #历史数据使用长度
         histories_length = getattr(strategy,"histories_length", None) or \
             config.setdefault("histories_length",20000)

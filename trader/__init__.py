@@ -23,10 +23,11 @@ local.project = config.project or "unknown"
 def init_project()->bool:
     #从文件中获取symbol
     try:
-        project_data_dir = os.listdir(f'{const.DATA_DIR}{os.sep}{local.node_domain}')
-        if project_data_dir == []:
-            raise Exception(f'{const.DATA_DIR}{os.sep}{local.node_domain} is empty directory')
-        for filename in project_data_dir:
+        project_data_dir = f'{const.DATA_DIR}{os.sep}{local.node_domain}'
+        project_data_dir_files = os.listdir(project_data_dir)
+        if project_data_dir_files == []:
+            raise Exception(f'{project_data_dir} is empty directory')
+        for filename in project_data_dir_files:
             file_name_split = filename.split('.')
             symbol, tag, fmt = file_name_split
             if (len(file_name_split) == 3 and tag[0].isalpha() and fmt == "csv" )  == False:
@@ -61,7 +62,8 @@ if config.kind == "trader":
     local.project_symbol_map = dict()
     #只有symbols上传到tasks的时候需要
     local.symbol_domain_map = dict()
-    init_project()
+    if not config.make_data:
+        init_project()
 elif config.kind == "amqp_server":
     pass
 
