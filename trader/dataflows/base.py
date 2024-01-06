@@ -16,8 +16,10 @@ class DataFlows:
     def period(self):
         raise NotImplementedError("not period implemented")
     
+    @property
+    def current_period_index(self)->pd.core.indexes.datetimes.DatetimeIndex:
+        return self.period.name
 
-    
 class DatetimeProperty:
     @property 
     def current_datetime(self):

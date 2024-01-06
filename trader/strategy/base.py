@@ -23,6 +23,13 @@ class StrategyBase:
         data = getattr(self,symbol).history.loc[self.data_flows.current_datetime]
         return data
     
+    def get_symbol_period(self, symbol:str) -> pd.core.series.Series:
+        return getattr(self.data_flows.period, symbol)
+    
+    def get_symbol_history(self, symbol:str) -> pd.core.frame.DataFrame:
+        return getattr(self,symbol).history
+    
+    
 class SymbolsProperty:
     """
         call strategy.{symbol}.{attribute} to get strategy.{attribute}.{symbol} attribute.
@@ -63,10 +70,9 @@ class SymbolsProperty:
         return price
 
     def _update_symbol_history(self, symbol):
-        getattr(self,symbol).history.loc[self.data_flows.period.name] = \
-            getattr(self.data_flows.period, symbol)
+        self.get_symbol_history(symbol).loc[self.data_flows.current_period_index] = \
+            self.get_symbol_period(symbol)
     #
-
     def _update_symbol_quota(self, symbol):
             price = self._get_quotation(symbol)
             getattr(self,symbol).property_dict["quota"] = price
