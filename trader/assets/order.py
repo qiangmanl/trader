@@ -1,8 +1,9 @@
+import numpy as np
 from trader.utils.base import DictBase
 
 class Order(DictBase):
     
-    def __init__(self, symbol="", action="", qty=0, price=0, order_type=""):
+    def __init__(self, symbol="", action="", qty=0, price=0, islong=True, order_type=""):
         """
         action: buy||sell
         status :["pending","partially_executed","finished","cancel"]
@@ -11,8 +12,10 @@ class Order(DictBase):
         """
 
         self.symbol = symbol
+        self.direction =  int(islong) or -1
         self.action = action
-        self.qty = qty or 0.0000000001
+        assert qty > 0.0000000001
+        self.qty = qty
         self.price = price
         self.order_type = order_type
         self.status = 'pending'
@@ -33,7 +36,6 @@ class Order(DictBase):
     def set_status(self, status):
         if not self.locked:
             self.update(status=status) 
-
 
     def filling_qty(self, qty):
         #self.qty是目标完成的数量,self.fil_qty 是已经完成的数量,回测型策略订单直接fill self.qty的数量，以完成交易
@@ -59,24 +61,32 @@ class Order(DictBase):
 
 
 class OrderBookPattern:
-    price = None
-    qty = None
-    value = None
+    price    = np.nan
+    long_qty = np.nan
+    long_lost_change  = np.nan
+    value    = np.nan
+    short_qty= np.nan
+    short_lost_change = np.nan
     @classmethod
     def create(cls,position):
-        cls.price = position.latest_price
-        cls.qty = position.qty
-        cls.value = position.value
-
+        cls.price     = position.latest_price
+        cls.long_qty  = position.long_qty
+        cls.long_lost_change = position.long_lost_change
+        cls.short_lost_change = position.short_lost_change
+        cls.short_qty = position.short_qty
+        cls.value     = position.value
         return cls
     
     @classmethod
     @property
     def orderbook(cls):
         orderbook = {
-            "price" : cls.price,
-            "qty"   : cls.qty,
-            "value" : cls.value
+            "price"       : cls.price,
+            "long_qty"    : cls.long_qty,
+            "long_lost_change"  : cls.long_lost_change,
+            "short_qty"   : cls.short_qty,
+            "short_lost_change" : cls.short_lost_change,
+            "value"       : cls.value
         }
         return orderbook
 

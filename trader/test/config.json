@@ -1,7 +1,7 @@
 {
-    "project": "trader",
+    "project": "parity",
+    "kind": "trader",
     "log": {
-        "path": "logs/inter.log",
         "rotation": "500MB",
         "encoding": "utf-8",
         "enqueue": true,
@@ -9,20 +9,10 @@
         "retention": "10 days",
         "level": "Debug"
     },
-    "strategy_window": 2,
-    "strategy_index_name": "trade_time",
-    "strategy_columns": [
-        "open",
-        "high",
-        "low",
-        "close",
-        "vol"
-    ],
-    "strategy_price_reference": "current_period_close",
     "historical_order": {
         "default": {
-            "buying_fee": 0.003,
-            "selling_fee": 0.003,
+            "long_fee": 0.003,
+            "short_fee": 0.003,
             "balance": 200000,
             "leverage": 2,
             "direction": -1,
@@ -32,12 +22,16 @@
     "strategy_heartbeat": {
         "heartname": "strategy",
         "print_interval": 60,
-        "interval": 1e-05
+        "interval": 1e-08
     },
-    "symbol_list": [
-        "test"
-    ],
+    "histories_length": 2000,
+    "new_tasks_domain": false,
+    "amqp_server": {
+        "broker": "amqp://guest@localhost//",
+        "backend": "rpc://"
+    },
     "node_id": "yBhR7ZEmXXWYThv0zN",
-    "node_task_mode" : "order",
-    "node_domain" : "all" 
+    "node_domain": "default",
+    "catch_new_tasks": 1,
+    "tasks_symbols": []
 }

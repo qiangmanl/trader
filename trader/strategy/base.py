@@ -1,9 +1,23 @@
 
 import pandas as pd
-from trader.orderflows import OrderBookPattern
-from trader.positions import HistoricalPosition, TradingPosition
+from trader.assets import OrderBookPattern
+from trader.assets import HistoricalPosition, TradingPosition
 from trader.utils.base import SymbolsPropertyDict
 
+class WindowCtrol:
+    def __init__(self,point_window):
+        self.point = 0
+        self.keep_point_window=point_window
+
+    @property
+    def pace(self):
+        self.point += 1
+        if self.point == self.keep_point_window:
+            self.repoint()
+        return self.point
+    
+    def repoint(self):
+        self.point = 0
 
 class StrategyBase:
     model = ""
@@ -48,42 +62,20 @@ class SymbolsProperty:
             if getattr(self, symbol, None) == None:
                 self._set_symbol_object(symbol)
                 self._set_symbol_property(symbol)
-                self._set_symbol_history(symbol)
+                self._update_symbol_history(symbol)
                 self._set_symbol_account(symbol)
-
-    def update_symbol_object(self):
-        for symbol in self.symbol_objects:
-            #更新每个symbol 的history
-            #更新每个symbol的history必须在更新symbol报价之前执行
-            self._set_symbol_history(symbol)
-            self._set_symbol_quota(symbol)
         
     def _set_symbol_object(self, symbol) -> None:
-        #为了让strategy可以直接通过symbol获得symbol相关属性
+        #让strategy获得symbol相关属性
         setattr(self, symbol, type("SymbolObject", (), {})())
 
     def _set_symbol_property(self, symbol ) -> None:
         #symbol的属性
-        setattr(getattr(self, symbol),'history' , pd.DataFrame(columns=self.strategy_columns))
+        setattr(getattr(self, symbol),'history' , pd.DataFrame(columns=self.ohlcv_columns))
         setattr(getattr(self, symbol),'position' ,getattr(self.positions, symbol))
         setattr(getattr(self, symbol),'property_dict' , SymbolsPropertyDict())
         setattr(getattr(self, symbol),'orderbook' , pd.DataFrame(columns=OrderBookPattern.keys))
 
-    def _get_quotation(self, symbol:str):
-        match self.price_reference:
-            case "current_period_close":
-                price = self.get_previous_history(symbol)["close"]
-            case "next_period_open":
-                price = self.get_current_history(symbol)["open"]
-        return price
-
-    def _set_symbol_history(self, symbol):
-        self.get_symbol_history(symbol).loc[self.data_flows.current_period_index] = \
-            self.get_symbol_period(symbol)
-    #
-    def _set_symbol_quota(self, symbol):
-            price = self._get_quotation(symbol)
-            getattr(self,symbol).property_dict["quota"] = price
 
     def _set_symbol_account(self, symbol):
         position = self.get_symbol_position(symbol)
@@ -93,6 +85,27 @@ class SymbolsProperty:
         orderbook.loc[self.data_flows.current_period_index] = \
         OrderBookPattern.create(position).orderbook
 
+    def _update_symbol_history(self, symbol):
+        self.get_symbol_history(symbol).loc[self.data_flows.current_period_index] = \
+            self.get_symbol_period(symbol)
+        if self.column_only_close:
+            close = self.get_symbol_history(symbol).loc[self.data_flows.current_period_index].close
+            self.get_symbol_history(symbol).open = close
+            self.get_symbol_history(symbol).high = close
+            self.get_symbol_history(symbol).low = close
+            
+    def _update_symbol_quota(self, symbol):
+            ohlcv = self.get_current_history(symbol)
+            getattr(self,symbol).property_dict["ohlcv"] = ohlcv
+            getattr(self,symbol).property_dict["ohlc"] = ohlcv[:-1]
+
+    def update_symbol_object(self):
+        for symbol in self.symbol_objects:
+            #更新每个symbol 的history
+            #更新每个symbol的history必须在更新symbol报价之前执行
+            self._update_symbol_history(symbol)
+            self._update_symbol_quota(symbol)
+        
 
 
 

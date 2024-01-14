@@ -1,3 +1,4 @@
+from datetime import timedelta
 import pandas as pd
 
 df1 = pd.DataFrame({'a': [1, 2], 'b': [3, 4]})
@@ -73,3 +74,34 @@ class B:
         return self
 
 b = B().defx(1)
+
+
+
+
+import pandas as pd
+index = pd.date_range(start="2023-05-10",end="2023-10-10",freq="5T")
+
+x = index[0].date()
+
+
+
+# index = pd.date_range(start="2023-05-10",end="2023-10-10",freq="5T")
+window =10
+x = 0
+# l =  list(range(100))
+# while l !=[]:
+#     x +=1 
+#     if x == window *2:
+#         d = l[:x]
+#         l = l[x:]
+#         print(d)
+#         x = 0
+
+index = pd.date_range(start="2023-05-10",end="2023-10-10",freq="5T")
+while len(index) !=0:
+    x +=1 
+    if x == window *2:
+        d = index[:x]
+        index =index[x:]
+        print(d)
+        x = 0

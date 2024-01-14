@@ -9,15 +9,21 @@
         "retention": "10 days",
         "level": "Debug"
     },
-    "strategy_price_reference": "current_period_close",
-    "historical_order": {
-        "default": {
-            "buying_fee": 0.003,
-            "selling_fee": 0.003,
-            "balance": 200000,
-            "leverage": 2,
-            "direction": -1,
-            "commission": 0.003
+    "historical_config": {
+        "histories_length": 20000,
+        "historical_order": {
+            "default": {
+                "balance": 10000,
+                "long_fee": 0.0,
+                "short_fee": 0.0,
+                "leverage": 1
+            },
+            "testsymbol1": {
+                "balance": 100000,
+                "long_fee": 0.0,
+                "short_fee": 0.0,
+                "leverage": 1
+            }
         }
     },
     "strategy_heartbeat": {
@@ -33,5 +39,6 @@
     },
     "node_id": "yBhR7ZEmXXWYThv0zN",
     "node_domain": "default",
-    "catch_new_tasks": 1
+    "catch_new_tasks": 1,
+    "tasks_symbols": []
 }

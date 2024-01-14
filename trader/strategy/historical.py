@@ -1,65 +1,67 @@
 import os
 import pandas as pd
+from trader.exception import LocalAccountError
+from trader.utils.tasks_function import get_symbol_account_state, open_account_symbol
 from trader.utils.tools import str_pd_datetime
-from .base import StrategyBase, SymbolsProperty
+from .base import StrategyBase, SymbolsProperty, WindowCtrol
 from trader import logger, local
 from trader.dataflows import HistoricalDataFlows
-from trader.orderflows import Order, OrderBookPattern
-from trader.positions import HistoricalPositionMap
+from trader.assets import Order, OrderBookPattern
+from trader.assets.historical import HistoricalPosition, HistoricalPositionMap
 
-def csv_to_history(index_name, file, strategy_columns)->bool:
-    df = pd.read_csv(f'{local.domain_dir}{os.sep}{file}')
-    df = normalize_index(df, index_name)
-    df = df.loc[:, strategy_columns]
-
-    return df
-
-def normalize_index(df,isdatetime="datetime"):
-    #set index from column named isdatetime, index name always "datetime"
-    if isdatetime in df.columns:
-        df[isdatetime] = pd.to_datetime(df[isdatetime])
-        df.set_index(isdatetime, inplace=True)
-        df.rename_axis('datetime', inplace=True)
-        return df
-    elif isdatetime == "index":
-        df.index = pd.to_datetime(df.index)
-        df.rename_axis('datetime', inplace=True)
-        return df
-    # need check datetime
-    logger.debug(df)
-    logger.error(f'datetime can\'t normalized with index {df.index.name}')
-    exit()
 
 class HistoricalStrategy(StrategyBase, SymbolsProperty):
     """
-    price_reference :"current_period_close"|"next_period_open"
     """
     model = "historical"
     #策略运行时初始化一次，所有策略需要的配置都通过init传递
 
-    def before_init_define(self,index_name, strategy_columns, symbol_list, price_reference):
-        self.index_name = index_name
-        self.strategy_columns = strategy_columns
-        self.price_reference = price_reference
-        symbol_object_list = []
-        for task_symbol in symbol_list:
-            symbol_object_list.append(f'{task_symbol}')
-        self.symbol_objects = symbol_object_list
 
-    def init_account(self, **order_config ):
+    def csv_to_history(self, file, ohlcv_columns, index_name)->bool:
+        df = pd.read_csv(f'{local.domain_dir}{os.sep}{file}',index_col=index_name,parse_dates=[index_name])
+
+        df.index.rename(self.index_name,inplace=True)
+        #限定ohlcv5个column，名称由config 和策略定义,如果不存在列名报错
+        try:
+            df = df.loc[:, ohlcv_columns]
+        except KeyError:
+            logger.error(f'df do not have {ohlcv_columns} in columns')
+            exit()
+        if self.column_only_close:
+            df.rename(columns={ohlcv_columns[0]: self.ohlcv_columns[3]},inplace=True)
+        else:
+            df.rename(
+                columns={
+                    ohlcv_columns[0]: self.ohlcv_columns[0],
+                    ohlcv_columns[1]: self.ohlcv_columns[1],
+                    ohlcv_columns[2]: self.ohlcv_columns[2],
+                    ohlcv_columns[3]: self.ohlcv_columns[3],
+                    ohlcv_columns[4]: self.ohlcv_columns[4]
+                },
+                inplace=True
+            )
+        return df
+
+    def before_start_define(
+            self,
+            column_only_close : bool,
+            symbol_list       :list,
+            is_new : bool,
+            keep_dataflow_window : int 
+        ):
+        self.index_name = 'trade_time'
+        self.ohlcv_columns = ["open","high","low","close","vol"]
+        self.project_is_new = is_new
+        self.wc = WindowCtrol(keep_dataflow_window)
+        self.column_only_close = column_only_close
+        self.symbol_objects = symbol_list
         self.trading_signals = dict()
-        self.positions = HistoricalPositionMap(self.symbol_objects ,**order_config)
-     
-    def init_data_flows(self, histories):
-        histories_data = pd.concat(histories, axis=1, keys=self.symbol_objects)
-        self.data_flows = HistoricalDataFlows(
-            histories_data,
-            length=self.histories_length
-        )
 
-    def init_strategy(self,
+
+    def init_data_flows(self,
             histories_length,
-            order_config = None,
+            ohlcv_columns,
+            index_name
         )->bool | None:
         """
             history file name:
@@ -67,26 +69,81 @@ class HistoricalStrategy(StrategyBase, SymbolsProperty):
         """
 
         #wait check index_name 
-        #wait check strategy_columns
+        #wait check ohlcv_columns
         #config symbol_list有特定的执行任务列表
-        self.histories_length = histories_length
+        self.init_histories_length = histories_length
         try:
-            histories = []
-            for symbol in self.symbol_objects:
-                file_name = local.project_symbol_map[symbol]
-                history = csv_to_history(self.index_name, file_name, self.strategy_columns)
-                histories.append(history)
-
-            self.init_data_flows(histories)
-            self.init_account( **order_config )
-
+            if self.project_is_new == True:
+                self.histories_length = self.init_histories_length
+                histories = []
+                for symbol in self.symbol_objects:
+                    file_name = local.project_symbol_map[symbol]
+                    history = self.csv_to_history(file_name, ohlcv_columns, index_name)
+                    histories.append(history)
+                histories_data = pd.concat(histories, axis=1, keys=self.symbol_objects)
+            else:
+                import pdb
+                pdb.set_trace()
+                # self.histories_length = 
+                # histories_data = 
+            self.data_flows = HistoricalDataFlows(
+                histories_data,
+                length=self.histories_length
+            )
         except Exception as e:
-            import pdb
-            pdb.set_trace()
+            # import pdb
+            # pdb.set_trace()
             logger.error(e.__repr__())
             exit()          
 
-    # local.data_flows.get_symbol_history("300878")
+    def _init_account(self, order_config):
+        default_order_config = order_config["default"]
+        for symbol in self.symbol_objects:
+            # if orderconfig.get(symbol):
+            symbol_account_is_open, _ = get_symbol_account_state(domain=local.node_domain, symbol=symbol)
+            if symbol_account_is_open == True:
+                continue
+            if order_config.get(symbol,None) == None:
+                symbol_order_config = order_config.setdefault(symbol, default_order_config)
+            else:
+                symbol_order_config = order_config.get(symbol)
+            
+            amount = symbol_order_config.setdefault("balance", default_order_config["balance"])
+            balance, _ = open_account_symbol(domain=local.node_domain, amount=amount, symbol=symbol)
+            long_fee = symbol_order_config.setdefault("long_fee", default_order_config["long_fee"])
+            short_fee = symbol_order_config.setdefault("short_fee", default_order_config["short_fee"])
+            leverage = symbol_order_config.setdefault("leverage", default_order_config["leverage"])
+            try:
+                if balance == None:
+                    raise LocalAccountError("account set balance number error")
+                if balance <= 0:
+                    raise LocalAccountError("account set balance number too small")
+                if balance < amount:
+                    raise LocalAccountError("balance small than account preseted")
+                if long_fee < 0 or long_fee >= 1:
+                    raise LocalAccountError("account set long_fee number error")
+                if short_fee < 0 or  short_fee >= 1:
+                    raise LocalAccountError("account set short_fee number error")
+                if leverage < 1  or isinstance(leverage, int)==False:
+                    raise LocalAccountError("account set leverage  error")
+            except Exception as e:
+                logger.error(f'error from init_asset:{e.__repr__()}')
+                logger.error(f'error from init_asset:account set symbol {symbol} balance')
+                exit()
+            self.positions.add_position(symbol,
+                HistoricalPosition(symbol, balance, leverage, long_fee, short_fee)
+            )
+        self.account.reload()
+
+    def init_asset(self, 
+            account,
+            **order_config
+            ):
+        self.account = account
+        self.positions = HistoricalPositionMap()
+        if self.project_is_new:
+            self._init_account(order_config)
+
         return True
 
     def get_position(self,symbol):
@@ -100,47 +157,55 @@ class HistoricalStrategy(StrategyBase, SymbolsProperty):
     def domain(self):
         return local.node_domain
 
-    def get_symbol_quota(self,symbol):
-        price =  getattr(self,symbol).property_dict["quota"]
-        if bool(price > 0) == False:
-            price = 0.000001
+    def get_trading_quota(self, symbol:str):
+        price = self.get_previous_history(symbol)["close"]
         return price
 
-    def update_account(self,trading_signals, trade_time):
-        
+    def get_current_ohlc(self,symbol):
+        ohlc =  getattr(self,symbol).property_dict["ohlc"]
+        return ohlc
+
+    def _update_orders(self):
+        """
+            此时处理的订单价格是该symbol 前period的close 或者是当前period的open
+        """
+        trade_time=self.data_flows.previous_datetime
+        trading_signals = self.trading_signals.pop(trade_time,[])
         if len(trading_signals) > 0:
             for order in trading_signals:
-                price = self.get_symbol_quota(order.symbol)
-                if bool( price > 0) == False:
+                price = self.get_trading_quota(order.symbol)
+                #type price is numpy float64
+                if ( price > 0) == False:
                     #此次交易信号作废
                     continue
+
                 position = self.get_position(order.symbol)
                 order.set_price(price)
                 #回测直接成交
                 order.finish_historical_order()
                 #更新订单
-                position.update_position(order.price,trade_time=str_pd_datetime(trade_time), qty=order.fil_qty, action=order.action)
+                #previous_period_close order.price 是上一period close的价格
+                position.update_order(order)
+        
 
+    def _update_position(self, current_datetime):
+        current_datetime = current_datetime
         for symbol in self.symbol_objects:
             position = self.get_position(symbol)
-            price = self.get_symbol_quota(symbol)
-            position.update_position(price, trade_time=str_pd_datetime(trade_time))
+            ohlc = self.get_current_ohlc(symbol)
+            position.update_position(ohlc, current_datetime=str_pd_datetime(current_datetime))
             order_row = OrderBookPattern.create(position).orderbook
-            self.get_symbol_orderbook(symbol).loc[trade_time] = order_row
+            self.get_symbol_orderbook(symbol).loc[current_datetime, : ] = order_row
             #nan data  bool(nan) == False
         # import pdb
         # pdb.set_trace()
-
-    def get_trading_signal(self):
-        trading_signals = self.trading_signals.pop(self.data_flows.current_datetime,[])
-        return trading_signals
     
     def update(self)->bool:
         """
         """
         self.update_symbol_object()
-        trading_signals = self.get_trading_signal()
-        self.update_account(trading_signals, trade_time=self.data_flows.current_datetime)
+        self._update_orders()
+        self._update_position(self.data_flows.current_datetime)
 
     def make_trading_signal(self,tradetime, order):
         # 由于考虑同一时间节点存在多个买入信号，所以trading_signals 使用列表结构
@@ -150,20 +215,21 @@ class HistoricalStrategy(StrategyBase, SymbolsProperty):
             self.trading_signals[tradetime] = []
             self.trading_signals[tradetime].append(order)
 
-    def sell(self, symbol ,qty):
-        tradetime = self.next_period_index
+    def sell(self, symbol ,qty, islong=True):
         # tradetime_str = tradetime.strftime('%Y-%m-%d %H:%M:%S')
         if symbol in self.symbol_objects:
-            order = Order(symbol=symbol, qty=qty, action="sell", order_type="historical")
+            tradetime = self.data_flows.current_datetime
+            order = Order(symbol=symbol, qty=qty, action="sell", order_type="historical", islong=islong)
             self.make_trading_signal(tradetime, order)
-            logger.debug(f'current datetime:{self.data_flows.current_datetime} make a trading signal at {tradetime}')
+            logger.debug(f'current datetime:{tradetime} make a trading signal for traded at {self.data_flows.next_period_index}')
         else:
             logger.warning(f'symbol:"{symbol}" not on flows symbol {self.symbol_objects}')
 
-    def buy(self, symbol ,qty):
+    def buy(self, symbol ,qty, islong=True):
         if symbol in self.symbol_objects:
-            tradetime = self.data_flows.next_period_index
-            order = Order(symbol=symbol, qty=qty, action="buy", order_type="historical")
+            tradetime = self.data_flows.current_datetime
+            order = Order(symbol=symbol, qty=qty, action="buy", order_type="historical", islong=islong)
             self.make_trading_signal(tradetime, order)
+            logger.debug(f'current datetime:{tradetime} make a trading signal for traded at {self.data_flows.next_period_index}')
         else:
             logger.warning(f'symbol:"{symbol}" not on flows symbol {self.symbol_objects}')

@@ -16,7 +16,7 @@ df.to_csv(f'{local.domain_dir}{os.sep}parity.SZ.csv', index=True)
 
 class MyStrategy(HistoricalStrategy):
     index_name="trade_time"
-    strategy_columns=['close']
+    ohlcv_columns=['close']
     def __init__(self):
         self.pace = 1
 
