@@ -47,12 +47,12 @@ class HistoricalStrategy(StrategyBase, SymbolsProperty):
             column_only_close : bool,
             symbol_list       :list,
             is_new : bool,
-            keep_dataflow_window : int 
+            keep_window : int 
         ):
         self.index_name = 'trade_time'
         self.ohlcv_columns = ["open","high","low","close","vol"]
         self.project_is_new = is_new
-        self.wc = WindowCtrol(keep_dataflow_window)
+        self.wc = WindowCtrol(keep_window)
         self.column_only_close = column_only_close
         self.symbol_objects = symbol_list
         self.trading_signals = dict()
@@ -61,7 +61,8 @@ class HistoricalStrategy(StrategyBase, SymbolsProperty):
     def init_data_flows(self,
             histories_length,
             ohlcv_columns,
-            index_name
+            index_name,
+            keep_window
         )->bool | None:
         """
             history file name:
@@ -86,9 +87,11 @@ class HistoricalStrategy(StrategyBase, SymbolsProperty):
                 pdb.set_trace()
                 # self.histories_length = 
                 # histories_data = 
+    
             self.data_flows = HistoricalDataFlows(
                 histories_data,
-                length=self.histories_length
+                length=self.histories_length,
+                keep_window=keep_window
             )
         except Exception as e:
             # import pdb

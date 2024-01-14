@@ -3,10 +3,10 @@ import pandas as pd
 from trader.assets import OrderBookPattern
 from trader.assets import HistoricalPosition, TradingPosition
 from trader.utils.base import SymbolsPropertyDict
-
+from trader import logger
 class WindowCtrol:
     def __init__(self,point_window):
-        self.point = 0
+        self.point = 1
         self.keep_point_window=point_window
 
     @property
@@ -62,7 +62,7 @@ class SymbolsProperty:
             if getattr(self, symbol, None) == None:
                 self._set_symbol_object(symbol)
                 self._set_symbol_property(symbol)
-                self._update_symbol_history(symbol)
+                # self._update_symbol_history(symbol)
                 self._set_symbol_account(symbol)
         
     def _set_symbol_object(self, symbol) -> None:
@@ -71,7 +71,8 @@ class SymbolsProperty:
 
     def _set_symbol_property(self, symbol ) -> None:
         #symbol的属性
-        setattr(getattr(self, symbol),'history' , pd.DataFrame(columns=self.ohlcv_columns))
+
+        setattr(getattr(self, symbol),'history' , self.data_flows.pre_data.pop(symbol).copy())
         setattr(getattr(self, symbol),'position' ,getattr(self.positions, symbol))
         setattr(getattr(self, symbol),'property_dict' , SymbolsPropertyDict())
         setattr(getattr(self, symbol),'orderbook' , pd.DataFrame(columns=OrderBookPattern.keys))
@@ -82,18 +83,23 @@ class SymbolsProperty:
         price = self.get_current_history(symbol)["close"]
         position.open(price)
         orderbook = self.get_symbol_orderbook(symbol)
-        orderbook.loc[self.data_flows.current_period_index] = \
+        orderbook.loc[self.data_flows.current_datetime] = \
         OrderBookPattern.create(position).orderbook
-
+        logger.debug(f'{orderbook}')
+        logger.debug(f'{position}')
     def _update_symbol_history(self, symbol):
-        self.get_symbol_history(symbol).loc[self.data_flows.current_period_index] = \
-            self.get_symbol_period(symbol)
+
+        # self.get_symbol_history(symbol).loc[self.data_flows.current_datetime] = \
+        #     self.get_symbol_period(symbol)
+        
+        self.get_symbol_history(symbol).loc[self.data_flows.current_datetime] = self.get_symbol_period(symbol)
         if self.column_only_close:
-            close = self.get_symbol_history(symbol).loc[self.data_flows.current_period_index].close
-            self.get_symbol_history(symbol).open = close
-            self.get_symbol_history(symbol).high = close
-            self.get_symbol_history(symbol).low = close
-            
+            df = self.get_symbol_history(symbol)
+            close = df.loc[self.data_flows.current_datetime].close
+            df.open = close
+            df.high = close
+            df.low = close
+  
     def _update_symbol_quota(self, symbol):
             ohlcv = self.get_current_history(symbol)
             getattr(self,symbol).property_dict["ohlcv"] = ohlcv

@@ -114,7 +114,7 @@ class HistoricalAccount(DictBase):
         if self.total_asset == None:
             self.transfer_fee = transfer_fee
             self.total_asset = total_asset
-            self.initiated = True
+            self.prepared = True
         else:
             raise TasksAccountError("account init error:account existed")
 

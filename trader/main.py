@@ -140,6 +140,11 @@ def run_strategy( Strategy,*args, **kwargs ) -> None:
         strategy.data_flows.update()
         strategy.update()
         strategy.start()
+        if strategy.wc.pace == 0:
+
+            import pdb
+            pdb.set_trace() 
+        
         #不做修改
         if strategy.data_flows.slided_end:
             try:
@@ -210,13 +215,14 @@ def run_strategy( Strategy,*args, **kwargs ) -> None:
             column_only_close = config.column_only_close,
             symbol_list       = symbol_list,
             is_new = is_new,
-            keep_dataflow_window = config.keep_dataflow_window
+            keep_window = config.keep_dataflow_window
         )
         
         strategy.init_data_flows(
             histories_length,
             ohlcv_columns,
-            index_name
+            index_name,
+            config.keep_dataflow_window
         )
         #config.node_stand_alone 决定使用哪个account 对象
         strategy.init_asset(
