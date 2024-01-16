@@ -20,14 +20,15 @@ def init_project() -> None:
         project_data_dir_files = os.listdir(project_data_dir)
         if project_data_dir_files == []:
             raise DataIOError(f'{project_data_dir} is empty directory')
+
         for filename in project_data_dir_files:
             file_name_split = filename.split('.')
             symbol, tag, fmt = file_name_split
             if (len(file_name_split) == 3 and tag[0].isalpha() and fmt == "csv" )  == False:
                 raise DataIOError(f'{filename} is not a suitable csv file')
             local.project_symbol_map[f'{tag}{symbol}'] = filename
-            if not config.update_tasks_domain:
-                continue
+            # if not config.update_tasks_domain:
+            #     continue
             local.all_tasks_symbol.append(f'{tag}{symbol}')
     except Exception as e:
         logger.error(e.__repr__())
@@ -98,15 +99,19 @@ def get_task_symbols(node_id, node_domain) -> List[str]:
     return symbol_list
 
 
-def update_local_symbols(update: bool, is_new: bool) -> None:
+# def update_local_symbols(update: bool, is_new: bool) -> None:
+    # if update:
+        # success, err = update_task_symbols(domain_name=local.node_domain, task_symbols=local.all_tasks_symbol, is_new=is_new)
+
+
+def update_local_symbols() -> None:
     logger.debug(f'update_local_symbols paramater:  {local.node_domain}:{local.all_tasks_symbol}')
-    if update:
-        success, err = update_task_symbols(domain_name=local.node_domain, task_symbols=local.all_tasks_symbol, is_new=is_new)
-        if success:
-            logger.debug(f'update_task_symbols return :{success}')
-        else:
-            logger.error(err)
-            exit()
+    success, err = update_task_symbols(domain_name=local.node_domain, task_symbols=local.all_tasks_symbol)
+    if success:
+        logger.debug(f'update_task_symbols return :{success}')
+    else:
+        logger.error(err)
+        exit()
 
 def get_update_param(update_symbols_param : str | int | bool):
     if isinstance(update_symbols_param, str):
@@ -146,32 +151,31 @@ def run_strategy( Strategy,*args, **kwargs ) -> None:
         # strategy.SZ002212.history
         if strategy.wpc.pace == 0:
             # strategy.data_flows.histories = strategy.data_flows.histories[strategy.wpc.keep_point_window : ]  
- 
-             
-            for symbol in strategy.symbol_objects:
-                history = getattr(strategy, symbol).history[:strategy.wpc.keep_point_window]
-                history.index = history.index.astype("str")
-                orderbook = getattr(strategy, symbol).orderbook[:strategy.wpc.keep_point_window]
-                orderbook.index = orderbook.index.astype("str")
-                position = strategy.positions[symbol]
-                domain_update_symbol_info(
-                    domain=local.node_domain, 
-                    symbol=symbol,
-                    history=history.T.to_dict(orient='list'),
-                    position=position,
-                    orderbook=orderbook.T.to_dict(orient="list")
-                )
-
-                # from trader.amqp_server import tasks
-                # tasks.domain_get_symbol_attr.delay(local.node_domain, symbol, attr="history").get()
-                # tasks.domain_get_symbol_init_history.delay(local.node_domain, symbol, strategy.wpc.keep_point_window).get()
-            if config.update_tasks_domain == "new":
-                config.update(update_tasks_domain=False)
-                looper.stop()
+            try:
+                for symbol in strategy.symbol_objects:
+                        history = getattr(strategy, symbol).history[:strategy.wpc.keep_point_window]
+                        history.index = history.index.astype("str")
+                        ohlcv=history.loc[:,history.columns[:5]]
+                        analyses = history.loc[:,history.columns[5:]]
+                        #合并方式:pd.concat([ohlcv,analyses],axis=1)# 支持一方合并空df 
+                        orderbook = getattr(strategy, symbol).orderbook[:strategy.wpc.keep_point_window]
+                        orderbook.index = orderbook.index.astype("str")
+                        domain_update_symbol_info(
+                            domain=local.node_domain, 
+                            symbol=symbol,
+                            ohlcv=ohlcv.T.to_dict(orient='list'),
+                            analyses = analyses.T.to_dict(orient='list'),
+                            orderbook=orderbook.T.to_dict(orient="list")
+                        )
+       
+            except Exception as e:
+                logger.error(e.__repr__())
+                exit()
+            # if config.update_tasks_domain == "new":
+            #     config.update(update_tasks_domain=False)
+            #     looper.stop()
         #不做修改
         if strategy.data_flows.slided_end:
-            # import pdb
-            # pdb.set_trace()
             try:
                 strategy.positions.settlement_all_symbol()
                 strategy.update()
@@ -179,7 +183,7 @@ def run_strategy( Strategy,*args, **kwargs ) -> None:
                 looper.stop()
             except Exception as e:
                 logger.error(e)
-                exit()
+                looper.stop()
         
     #策略内定义优先
     strategy_heartbeat_config = get_strategy_heartbeat_config()
@@ -211,27 +215,15 @@ def run_strategy( Strategy,*args, **kwargs ) -> None:
 
 
         if config.node_stand_alone:
-            is_new = True
+            # is_new = True
             symbol_list = config.tasks_symbols
             account = SingleNodeAccount(total_asset=total_asset,transfer_fee=transfer_fee)  
         else:
-            if config.update_tasks_domain:
+            # if config.update_tasks_domain:
                 
-                update, is_new = get_update_param(update_symbols_param=config.update_tasks_domain)
-                if update == None:
-                    logger.error(f'update_local_symbols paramater type error: {config.update_tasks_domain} ')
-                    exit()
-                else:
-                    update_local_symbols(update=update, is_new=is_new)
-            # logger.debug()
-                if is_new == True:
-                    account = TasksAccount.init_account(domain=local.node_domain, total_asset=total_asset, transfer_fee=transfer_fee)
-                else:
-                    account = TasksAccount.load_account(domain=local.node_domain)
-            else:
-                 is_new = False
-                 account = TasksAccount.load_account(domain=local.node_domain)
-            
+            update_local_symbols()
+            account = TasksAccount.init_account(domain=local.node_domain, total_asset=total_asset, transfer_fee=transfer_fee)
+        
             symbol_list = get_task_symbols(local.node_id, node_domain=local.node_domain)
         logger.debug(f'{account}')
         logger.debug(f'{get_domain(local.node_domain)}')
@@ -243,15 +235,13 @@ def run_strategy( Strategy,*args, **kwargs ) -> None:
         strategy.before_start_define(
             column_only_close = config.column_only_close,
             symbol_list       = symbol_list,
-            is_new = is_new,
             keep_window = config.keep_dataflow_window
         )
-        
+
         strategy.init_data_flows(
             histories_length,
             ohlcv_columns,
-            index_name,
-            config.keep_dataflow_window
+            index_name
         )
         #config.node_stand_alone 决定使用哪个account 对象
         strategy.init_asset(
@@ -259,12 +249,15 @@ def run_strategy( Strategy,*args, **kwargs ) -> None:
             **historical_config["historical_order"]
         )
 
+        strategy.init_symbol_objects()
+
     else:
         #real trading
         import pdb
         pdb.set_trace()
+        # domain_get_trading_signals(local.node_domain) 
 
-    strategy.init_symbol_objects()
+    # strategy.init_symbol_objects()
     # config.update(update_tasks_domain=False) 
     #在策略执行前定义
     if getattr(strategy,"init_custom",None):

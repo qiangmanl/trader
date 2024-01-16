@@ -2,7 +2,6 @@
 """
 
 __version__  = "0.1.0"
-from datetime import datetime
 import os
 from trader import const
 from trader.utils.tools import gen_random_id
@@ -11,8 +10,6 @@ from trader.utils.config import Config
 from trader.utils.logger import Logger
 
 local   = Local()
-
-
 
 try:
     config = Config("config.json")

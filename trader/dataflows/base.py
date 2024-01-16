@@ -1,6 +1,8 @@
 
 import pandas as pd
 
+from trader.utils.tools import str_pd_datetime
+
 
 class DataFlows:
     def __init__(self)->None:
@@ -34,12 +36,20 @@ class DatetimeProperty:
         return self.current_datetime_index
 
     @property
+    def current_datetime_str(self):
+        return str_pd_datetime(self.current_datetime)
+
+    @property
     def next_period_index(self):
         raise NotImplementedError("not next_period_index implemented")
 
     @property
     def previous_datetime(self):
        return self.previous_datetime_index
+
+    @property
+    def previous_datetime_str(self):
+       return str_pd_datetime(self.previous_datetime_index)
 
     @property
     def today(self):

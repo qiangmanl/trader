@@ -30,6 +30,61 @@ app.conf.update(
     CELERY_ENABLE_UTC=True,
     TIMEZONE='Asia/Shanghai'
 )
+# from functools import wraps
+
+# def before_domain_exist(func):
+#     @wraps(func)
+#     def wrapper(domain_name, signals):
+#         try:
+#             domain = symbols_task_pool.get_domain(domain_name=domain_name)
+#             if not domain:
+#                 raise TasksRequestError(f'symbols_task_pool do not have  domain named {domain_name}')
+#             else:
+#                 return func(domain_name, signals)
+#         except Exception as e:
+#             return '' , f'from task.update_pool_symbols:{e.__repr__()}'
+
+
+class TradingSignals:
+    def __init__(self):
+        self._signals = {}
+
+    @property
+    def signals(self):
+        return self._signals
+ 
+    def set_signals(self,signals):
+        self._signals = signals
+
+    def del_signals(self):
+        self._signals = {}
+
+@app.task
+def domain_set_signals(domain_name, signals):
+    try:
+        domain = symbols_task_pool.get_domain(domain_name=domain_name)
+        if not domain:
+            raise TasksRequestError(f'symbols_task_pool do not have  domain named {domain_name}')
+        else:
+            domain.ts.set_signals(signals=signals)
+            return True, ''
+    except Exception as e:
+        return '' , f'from task.update_pool_symbols:{e.__repr__()}'
+
+@app.task
+def domain_get_signals(domain_name):
+    try:
+        domain = symbols_task_pool.get_domain(domain_name=domain_name)
+        if not domain:
+            raise TasksRequestError(f'symbols_task_pool do not have  domain named {domain_name}')
+        else:
+            signals = domain.ts.signals
+            domain.ts.del_signals()
+            return signals, ''
+    except Exception as e:
+        return '' , f'from task.update_pool_symbols:{e.__repr__()}'
+
+# {'2021-02-22 15:00:00': [{'symbol': 'SZ002212', 'direction': 1, 'action': 'buy', 'qty': 1, 'price': None, 'order_type': 'historical', 'status': 'pending', 'fil_qty': 0, 'qty_filled_rate': 0.9}],
 
 class _SymbolObject(DictBase):
     def __init__(self,name:str)->None:
@@ -39,9 +94,11 @@ class _SymbolObject(DictBase):
         self.balance = 0
         self.account_open = False
         self.transfer_log = [0,]
-        self.position = dict()
-        self.history = dict()
+        # self.trading_signals = dict()
+        # self.position = dict()
+        self.ohlcv = dict()
         self.orderbook = dict()
+        self.analyses = dict()
         # self.datetime_index = []
 
     def return_back(self, back:str)-> Any:
@@ -53,6 +110,7 @@ class _SymbolObject(DictBase):
     @property
     def last_amount(self) -> Union[float , int]:
         return self.transfer_log[-1]
+    
 #update_local_symbols
 class _UpdatedSymbolsObject(DictBase):
 
@@ -180,6 +238,7 @@ class DomainAccountObject:
 class DomainObjects(DomainSymbolObject, DomainAccountObject, list):
     def __init__(self,domain) -> None:
         self.name = domain
+        # self.ts = TradingSignals()
         super(DomainObjects, self).__init__()
 
     def set_node_all_symbol_leisure(self, node_id) -> None:
@@ -474,8 +533,9 @@ def domain_get_symbol_attr(domain:str, symbol:str,attr:str) -> Tuple[Any, Litera
 def domain_update_symbol_info(
         domain_name   : str, 
         symbol_name   : str, 
-        history  : Dict[str, list],
-        position : Dict[str, Any ],
+        ohlcv  : Dict[str, list],
+        analyses  : Dict[str, list],
+        # position : Dict[str, Any ],
         orderbook: Dict[str, list],
     ) -> Tuple[bool | None, Literal[""] | str]:
     try:
@@ -485,9 +545,10 @@ def domain_update_symbol_info(
         else:
             symbol = domain.get_symbol(symbol_name)
             if symbol:
-                symbol.position.update(position)
-                symbol.history.update(history)
+                # symbol.position.update(position)
+                symbol.ohlcv.update(ohlcv)
                 symbol.orderbook.update(orderbook)
+                symbol.analyses.update(analyses)
                 return True, ''
             raise TasksRequestError("domain_get_symbol: symbol no exist")
     except Exception as e:
@@ -505,31 +566,29 @@ def domain_get_symbol_init_position(
             raise TasksRequestError(f'symbols_task_pool do not have  domain named {domain} or tasks function request a wrong way')
         symbol = domain.get_symbol(symbol)
         if symbol:
-           return  symbol.position
+           return  symbol.position , ''
         raise TasksRequestError("domain_get_symbol: symbol no exist")
     except Exception as e:
         return None, f'from task.domain_get_symbol_init_position:{e.__repr__()}'
 
-
-
-
 @app.task   
-def domain_get_symbol_init_history(
+def domain_get_symbol_init_analyses(
         domain   : str, 
         symbol   : str, 
         keep_window : int
     ) -> Tuple[dict | None, Literal[""] | str]:
+    #初始化与ohlcv合并
     try:
         domain = symbols_task_pool.get_domain(domain)
         if not domain:
             raise TasksRequestError(f'symbols_task_pool do not have  domain named {domain} or tasks function request a wrong way')
         symbol = domain.get_symbol(symbol)
         if symbol:
-            history = symbol.__getattr__("history")
-            if len(history.keys()) >= keep_window:
-                return  [history.popitem() for _ in range(keep_window)], ''
+            analyses = symbol.__getattr__("analyses")
+            if len(analyses.keys()) >= keep_window:
+                return  [analyses.popitem() for _ in range(keep_window)], ''
             else:
-                raise TasksRequestError("domain_get_symbol_init_history: history length is not long enough")
+                raise TasksRequestError("domain_get_symbol_init_ohlcv: ohlcv length is not long enough")
         raise TasksRequestError("domain_get_symbol: symbol no exist")
     except Exception as e:
-        return [], f'from task.domain_get_symbol_init_history:{e.__repr__()}'
+        return [], f'from task.domain_get_symbol_init_ohlcv:{e.__repr__()}'

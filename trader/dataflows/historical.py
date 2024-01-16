@@ -2,22 +2,24 @@ from trader import logger
 from .base import DataFlows, DatetimeProperty
 
 class HistoricalDataFlows(DataFlows, DatetimeProperty):
-    def __init__(self,histories_data, length, keep_window) -> None:
+    # def __init__(self,histories_data, length, offset, offset) -> None:
+    def __init__(self,histories_data, length, offset) -> None:
         super().__init__()  
         self.initiated = True
+
         self.histories = histories_data[:length]
         self.histories_generator = self._gen_histories_generator()
         #为了时间同步,也为了尽早更新recently_period
-        self.pre_data = self.preload(window=keep_window)
+        self.pre_data = self.preload(window=offset)
         logger.debug(f'DataFlows initiate: \n {self.pre_data }'
                     )
         self.period_row  = self._get_period()
-        #len(histories_index) ==  histories_length - keep_window
-        self.histories_index = self.histories.index[keep_window : ]
+        #len(histories_index) ==  histories_length - offset
+        self.histories_index = self.histories.index[offset : ]
         self.lastest_histories_index_num = len(self.histories_index)
         self._histories_end_index_num = 0
-        logger.debug(f' init dataflows keep_window diff: {len(self.pre_data.index) - keep_window}; \
-                    keep_window :{keep_window};  \
+        logger.debug(f' init dataflows offset diff: {len(self.pre_data.index) - offset}; \
+                    offset :{offset};  \
                      index:{self.pre_data.index[-1]} - {self.current_datetime_index}' )
         
     def _gen_histories_generator(self):

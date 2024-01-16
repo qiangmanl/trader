@@ -23,8 +23,27 @@ class HistoricalPosition(DictBase):
     p.update_position(24,"23-1-6")
 
     """
+    
 
-    def __init__(self, symbol, balance, leverage, long_fee, short_fee):
+    # def __init__(self, symbol, balance, leverage, long_fee, short_fee):
+    #     self.symbol = symbol
+    #     self.symbol_balance = 0
+    #     self.leverage = leverage
+    #     self.set_balance(balance)
+    #     self.long_fee = long_fee
+    #     self.short_fee   = short_fee
+    #     self.value = self.symbol_balance
+    #     self.is_openning = False
+    #     self.long_profit = 0
+    #     self.short_profit = 0
+    #     self.long_qty = 0
+    #     self.short_qty = 0
+    #     self.short_lost_change = np.nan
+    #     self.long_lost_change = np.nan
+
+    @classmethod
+    def init(cls, symbol, balance, leverage, long_fee, short_fee):
+        self = cls()
         self.symbol = symbol
         self.symbol_balance = 0
         self.leverage = leverage
@@ -39,6 +58,14 @@ class HistoricalPosition(DictBase):
         self.short_qty = 0
         self.short_lost_change = np.nan
         self.long_lost_change = np.nan
+        return self
+
+    @classmethod
+    def load(cls, **position):
+        self = cls()
+        self.update(position)
+        return self
+        
     def open(self, price):
         self.price = price
         self.latest_price = price

@@ -3,7 +3,7 @@ from trader.utils.base import DictBase
 
 class Order(DictBase):
     
-    def __init__(self, symbol="", action="", qty=0, price=0, islong=True, order_type=""):
+    def __init__(self, symbol="", action="", qty=0, price=None, islong=True, order_type=""):
         """
         action: buy||sell
         status :["pending","partially_executed","finished","cancel"]

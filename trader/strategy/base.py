@@ -73,8 +73,8 @@ class SymbolsProperty:
 
     def _set_symbol_property(self, symbol ) -> None:
         #symbol的属性
-
-        setattr(getattr(self, symbol),'history' , self.data_flows.pre_data.pop(symbol).copy())
+        ohlcv = self.data_flows.pre_data.pop(symbol).copy()
+        setattr(getattr(self, symbol),'history' , ohlcv)
         setattr(getattr(self, symbol),'position' ,getattr(self.positions, symbol))
         setattr(getattr(self, symbol),'property_dict' , SymbolsPropertyDict())
         setattr(getattr(self, symbol),'orderbook' , pd.DataFrame(columns=OrderBookPattern.keys))

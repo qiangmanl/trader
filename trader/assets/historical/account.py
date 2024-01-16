@@ -4,8 +4,8 @@ from trader.utils.tasks_function import \
     account_init, \
     account_load, \
     account_transfer_to, \
-    account_get_symbol_asset, \
-    account_get_total_asset
+    account_get_symbol_asset \
+    # account_get_total_asset
 
 class HistoricalAccountBase(DictBase):
 
@@ -116,13 +116,13 @@ class TasksAccount(HistoricalAccountBase):
         else:
             return asset
         
-    def get_total_asset(self):
-        total_asset, err = account_get_total_asset() 
-        #获得tasks symbol asset之后更新本地，切不要从本地直接获得
-        self.tasks_symbol_asset =  total_asset
-        if total_asset:
-            return total_asset
-        else:
-            logger.error(err)
-            return        
+    # def get_total_asset(self):
+    #     total_asset, err = account_get_total_asset() 
+    #     #获得tasks symbol asset之后更新本地，切不要从本地直接获得
+    #     self.tasks_symbol_asset =  total_asset
+    #     if total_asset:
+    #         return total_asset
+    #     else:
+    #         logger.error(err)
+    #         return        
   
