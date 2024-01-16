@@ -7,6 +7,8 @@ from trader.exception import DataIOError
 from trader.heartbeat import looper
 from trader.assets.historical import SingleNodeAccount, TasksAccount
 from trader.utils.tasks_function import \
+    domain_update_symbol_info, \
+    get_domain, \
     get_task_symbols_with_length, \
     get_tasks_symbol_list, \
     update_task_symbols
@@ -136,17 +138,40 @@ def run_strategy( Strategy,*args, **kwargs ) -> None:
 
 
     async def run( strategy , **kwargs):
+        
         await asyncio.sleep(0)
         strategy.data_flows.update()
         strategy.update()
         strategy.start()
-        if strategy.wc.pace == 0:
+        # strategy.SZ002212.history
+        if strategy.wpc.pace == 0:
+            # strategy.data_flows.histories = strategy.data_flows.histories[strategy.wpc.keep_point_window : ]  
+ 
+             
+            for symbol in strategy.symbol_objects:
+                history = getattr(strategy, symbol).history[:strategy.wpc.keep_point_window]
+                history.index = history.index.astype("str")
+                orderbook = getattr(strategy, symbol).orderbook[:strategy.wpc.keep_point_window]
+                orderbook.index = orderbook.index.astype("str")
+                position = strategy.positions[symbol]
+                domain_update_symbol_info(
+                    domain=local.node_domain, 
+                    symbol=symbol,
+                    history=history.T.to_dict(orient='list'),
+                    position=position,
+                    orderbook=orderbook.T.to_dict(orient="list")
+                )
 
-            import pdb
-            pdb.set_trace() 
-        
+                # from trader.amqp_server import tasks
+                # tasks.domain_get_symbol_attr.delay(local.node_domain, symbol, attr="history").get()
+                # tasks.domain_get_symbol_init_history.delay(local.node_domain, symbol, strategy.wpc.keep_point_window).get()
+            if config.update_tasks_domain == "new":
+                config.update(update_tasks_domain=False)
+                looper.stop()
         #不做修改
         if strategy.data_flows.slided_end:
+            # import pdb
+            # pdb.set_trace()
             try:
                 strategy.positions.settlement_all_symbol()
                 strategy.update()
@@ -183,14 +208,15 @@ def run_strategy( Strategy,*args, **kwargs ) -> None:
             historical_config.setdefault("histories_length",20000)
     
         config.update(temporary=False,historical_config=historical_config)
- 
-        #
+
+
         if config.node_stand_alone:
             is_new = True
             symbol_list = config.tasks_symbols
             account = SingleNodeAccount(total_asset=total_asset,transfer_fee=transfer_fee)  
         else:
             if config.update_tasks_domain:
+                
                 update, is_new = get_update_param(update_symbols_param=config.update_tasks_domain)
                 if update == None:
                     logger.error(f'update_local_symbols paramater type error: {config.update_tasks_domain} ')
@@ -205,7 +231,10 @@ def run_strategy( Strategy,*args, **kwargs ) -> None:
             else:
                  is_new = False
                  account = TasksAccount.load_account(domain=local.node_domain)
+            
             symbol_list = get_task_symbols(local.node_id, node_domain=local.node_domain)
+        logger.debug(f'{account}')
+        logger.debug(f'{get_domain(local.node_domain)}')
         if account.prepared:
             logger.info(f"account {account.name} init success.")    
         else:
@@ -236,7 +265,7 @@ def run_strategy( Strategy,*args, **kwargs ) -> None:
         pdb.set_trace()
 
     strategy.init_symbol_objects()
-    # config.update(False,update_tasks_domain=False) 
+    # config.update(update_tasks_domain=False) 
     #在策略执行前定义
     if getattr(strategy,"init_custom",None):
         strategy.init_custom(*args, **kwargs)

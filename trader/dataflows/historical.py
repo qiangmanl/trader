@@ -8,15 +8,18 @@ class HistoricalDataFlows(DataFlows, DatetimeProperty):
         self.histories = histories_data[:length]
         self.histories_generator = self._gen_histories_generator()
         #为了时间同步,也为了尽早更新recently_period
-        self.period_row = None
-        self.pre_data = self.preload(window=keep_window +1)
+        self.pre_data = self.preload(window=keep_window)
         logger.debug(f'DataFlows initiate: \n {self.pre_data }'
                     )
-
+        self.period_row  = self._get_period()
+        #len(histories_index) ==  histories_length - keep_window
         self.histories_index = self.histories.index[keep_window : ]
         self.lastest_histories_index_num = len(self.histories_index)
         self._histories_end_index_num = 0
-
+        logger.debug(f' init dataflows keep_window diff: {len(self.pre_data.index) - keep_window}; \
+                    keep_window :{keep_window};  \
+                     index:{self.pre_data.index[-1]} - {self.current_datetime_index}' )
+        
     def _gen_histories_generator(self):
         for _, histories_period in self.histories.iterrows():
             yield histories_period
@@ -26,6 +29,9 @@ class HistoricalDataFlows(DataFlows, DatetimeProperty):
 
     @property
     def slided_end(self):
+
+        # self.histories_index[-1]:self.histories 最后一天index        
+        # self.histories_index[self._histories_end_index_num] history 当前时间
         return self.histories_index[self._histories_end_index_num] == self.histories_index[-1]
 
     @property
@@ -55,6 +61,7 @@ class HistoricalDataFlows(DataFlows, DatetimeProperty):
     def update(self):
         self._histories_end_index_num += 1
         self.period_row = self._get_period()
+        # print(self.current_datetime)
         # if self._histories_end_index_num == 19:
 
         # self.histories.drop(self.histories.index[0],axis=0,inplace=True)

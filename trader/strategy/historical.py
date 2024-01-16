@@ -1,9 +1,9 @@
 import os
 import pandas as pd
 from trader.exception import LocalAccountError
-from trader.utils.tasks_function import get_symbol_account_state, open_account_symbol
+from trader.utils.tasks_function import  get_symbol_account_state, get_symbol_init_position, open_account_symbol
 from trader.utils.tools import str_pd_datetime
-from .base import StrategyBase, SymbolsProperty, WindowCtrol
+from .base import StrategyBase, SymbolsProperty, WindowPointCtrol
 from trader import logger, local
 from trader.dataflows import HistoricalDataFlows
 from trader.assets import Order, OrderBookPattern
@@ -51,8 +51,10 @@ class HistoricalStrategy(StrategyBase, SymbolsProperty):
         ):
         self.index_name = 'trade_time'
         self.ohlcv_columns = ["open","high","low","close","vol"]
-        self.project_is_new = is_new
-        self.wc = WindowCtrol(keep_window)
+        #new_project_mode 决定初始化数据是否从tasks获取, is_new = config.update_tasks_domain=="new"
+        #一但strategy.wpc.pace == 0且本地开始上传symbol数据到tasks，new将被重置成false
+        self.new_project_mode = is_new
+        self.wpc = WindowPointCtrol(keep_window)
         self.column_only_close = column_only_close
         self.symbol_objects = symbol_list
         self.trading_signals = dict()
@@ -74,7 +76,7 @@ class HistoricalStrategy(StrategyBase, SymbolsProperty):
         #config symbol_list有特定的执行任务列表
         self.init_histories_length = histories_length
         try:
-            if self.project_is_new == True:
+            if self.new_project_mode == True:
                 self.histories_length = self.init_histories_length
                 histories = []
                 for symbol in self.symbol_objects:
@@ -99,10 +101,29 @@ class HistoricalStrategy(StrategyBase, SymbolsProperty):
             logger.error(e.__repr__())
             exit()          
 
-    def _init_account(self, order_config):
+    def _reload_position(self):
+        
+        for symbol in self.symbol_objects:
+            position, err = get_symbol_init_position(local.node_domain, symbol)
+            if err:
+                logger.error(err)
+                exit()
+            balance = position.get("balance")
+            leverage = position.get("leverage")
+            long_fee = position.get("long_fee")
+            short_fee = position.get("short_fee")
+            self.positions.add_position(symbol,
+                HistoricalPosition(symbol, balance, leverage, long_fee, short_fee)
+            )
+            # self.positions.add_position(symbol,
+            #     HistoricalPosition(symbol, balance, leverage, long_fee, short_fee)
+            # )
+
+    def _init_position(self, order_config):
         default_order_config = order_config["default"]
         for symbol in self.symbol_objects:
             # if orderconfig.get(symbol):
+            # 如果symbol有了第一次获取asset资金来源则跳过， 只有通过执行open_account_symbol 才会满足symbol_account_is_open
             symbol_account_is_open, _ = get_symbol_account_state(domain=local.node_domain, symbol=symbol)
             if symbol_account_is_open == True:
                 continue
@@ -110,17 +131,17 @@ class HistoricalStrategy(StrategyBase, SymbolsProperty):
                 symbol_order_config = order_config.setdefault(symbol, default_order_config)
             else:
                 symbol_order_config = order_config.get(symbol)
-            
+            logger.debug(f'symbol {symbol} order config : {symbol_order_config}')
             amount = symbol_order_config.setdefault("balance", default_order_config["balance"])
-            balance, _ = open_account_symbol(domain=local.node_domain, amount=amount, symbol=symbol)
+            balance, err = open_account_symbol(domain=local.node_domain, amount=amount, symbol=symbol)
             long_fee = symbol_order_config.setdefault("long_fee", default_order_config["long_fee"])
             short_fee = symbol_order_config.setdefault("short_fee", default_order_config["short_fee"])
             leverage = symbol_order_config.setdefault("leverage", default_order_config["leverage"])
             try:
                 if balance == None:
-                    raise LocalAccountError("account set balance number error")
+                    raise LocalAccountError(f"account set balance number error {err}")
                 if balance <= 0:
-                    raise LocalAccountError("account set balance number too small")
+                    raise LocalAccountError(f"account set balance number too small {err}")
                 if balance < amount:
                     raise LocalAccountError("balance small than account preseted")
                 if long_fee < 0 or long_fee >= 1:
@@ -144,9 +165,11 @@ class HistoricalStrategy(StrategyBase, SymbolsProperty):
             ):
         self.account = account
         self.positions = HistoricalPositionMap()
-        if self.project_is_new:
-            self._init_account(order_config)
 
+        if self.new_project_mode:
+            self._init_position(order_config)
+        else:
+            self._reload_position()
         return True
 
     def get_position(self,symbol):

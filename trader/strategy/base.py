@@ -4,7 +4,8 @@ from trader.assets import OrderBookPattern
 from trader.assets import HistoricalPosition, TradingPosition
 from trader.utils.base import SymbolsPropertyDict
 from trader import logger
-class WindowCtrol:
+
+class WindowPointCtrol:
     def __init__(self,point_window):
         self.point = 1
         self.keep_point_window=point_window
@@ -62,8 +63,9 @@ class SymbolsProperty:
             if getattr(self, symbol, None) == None:
                 self._set_symbol_object(symbol)
                 self._set_symbol_property(symbol)
-                # self._update_symbol_history(symbol)
+                self._update_symbol_history(symbol)
                 self._set_symbol_account(symbol)
+                
         
     def _set_symbol_object(self, symbol) -> None:
         #让strategy获得symbol相关属性
@@ -77,18 +79,18 @@ class SymbolsProperty:
         setattr(getattr(self, symbol),'property_dict' , SymbolsPropertyDict())
         setattr(getattr(self, symbol),'orderbook' , pd.DataFrame(columns=OrderBookPattern.keys))
 
-
     def _set_symbol_account(self, symbol):
+        #self.data_flows.pre_data.pop(symbol).copy() in _set_symbol_property mean pre_data pop to history
+        price = getattr(self, symbol).history.iloc[-1].close
         position = self.get_symbol_position(symbol)
-        price = self.get_current_history(symbol)["close"]
         position.open(price)
         orderbook = self.get_symbol_orderbook(symbol)
         orderbook.loc[self.data_flows.current_datetime] = \
         OrderBookPattern.create(position).orderbook
         logger.debug(f'{orderbook}')
         logger.debug(f'{position}')
-    def _update_symbol_history(self, symbol):
 
+    def _update_symbol_history(self, symbol):
         # self.get_symbol_history(symbol).loc[self.data_flows.current_datetime] = \
         #     self.get_symbol_period(symbol)
         

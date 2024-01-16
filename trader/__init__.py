@@ -28,12 +28,12 @@ try:
         node_id = local("node_id")
         if not config.node_id:
             local.node_id = gen_random_id()
-            config.update(False, node_id=local.node_id)
+            config.update(node_id=local.node_id)
         else:
             local.node_id = config.node_id
         if not config.node_domain:
             local.node_domain = "default"
-            config.update(False,node_domain=local.node_domain) 
+            config.update(node_domain=local.node_domain) 
         else:
             local.node_domain = config.node_domain 
 

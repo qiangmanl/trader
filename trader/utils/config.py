@@ -49,10 +49,10 @@ class Config(DictBase):
         for k, v in update_fields.items():
             self.__setattr__(k, v)
 
-    def update(self, temporary=True , **kwargs) -> None:
+    def update(self, temporary=False , **kwargs) -> None:
         """
         Usage:
-            config.update(False,x=11)
+            config.update(x=11)
         """
         for k,v in kwargs.items():
             self.__setattr__(k , v)

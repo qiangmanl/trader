@@ -13,7 +13,7 @@ def update_task_symbols(domain_name, task_symbols):
     if success:
         return success, ''
         # logger.debug(f"update_local_symbols :{success}")
-        # config.update(False,update_local_symbols=False) 
+        # config.update(update_local_symbols=False) 
     else:
         # logger.error(err)
         return None , err

@@ -13,7 +13,7 @@ class C:
         # super(C, self).__init__()
 class D(A,B,C):
     def __init__(self):
-       super(D,self).__init__()
+        pass
 
 d = D()
 d.a
@@ -36,3 +36,5 @@ class B():
     def add(self):
         self.x += 1
         return self.x
+    
+

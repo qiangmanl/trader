@@ -1,4 +1,4 @@
-from typing import Any, List, Literal, Tuple, Union, NoReturn
+from typing import Any, Dict, List, Literal, Tuple, Union, NoReturn
 from celery import Celery
 from trader import config,logger
 from trader.utils.base import DictBase 
@@ -39,6 +39,11 @@ class _SymbolObject(DictBase):
         self.balance = 0
         self.account_open = False
         self.transfer_log = [0,]
+        self.position = dict()
+        self.history = dict()
+        self.orderbook = dict()
+        # self.datetime_index = []
+
     def return_back(self, back:str)-> Any:
         match back:
             case "balance":
@@ -49,7 +54,7 @@ class _SymbolObject(DictBase):
     def last_amount(self) -> Union[float , int]:
         return self.transfer_log[-1]
 #update_local_symbols
-class _UpdatedSymbolObjects(DictBase):
+class _UpdatedSymbolsObject(DictBase):
 
     def update_symbol(self, symbol_name:str) -> _SymbolObject:
         symbol_obj = _SymbolObject(name=symbol_name)
@@ -57,11 +62,11 @@ class _UpdatedSymbolObjects(DictBase):
         return symbol_obj
 
 
-class DomainSymbolObjects:
+class DomainSymbolObject:
 
     def __init__(self):
-        self.updated_symbols = _UpdatedSymbolObjects()
-        super(DomainSymbolObjects, self).__init__()
+        self.updated_symbols = _UpdatedSymbolsObject()
+        super(DomainSymbolObject, self).__init__()
     def symbol_exist(self, symbol_name:str):
         return  symbol_name in self.updated_symbols.keys() or False
 
@@ -114,6 +119,7 @@ class HistoricalAccount(DictBase):
         if self.total_asset == None:
             self.transfer_fee = transfer_fee
             self.total_asset = total_asset
+            #用于标记初始化
             self.prepared = True
         else:
             raise TasksAccountError("account init error:account existed")
@@ -125,10 +131,10 @@ class HistoricalAccount(DictBase):
         return symbol.balance >= amount * (1 + self.transfer_fee)
 
 
-class DomainAccountObjects:
+class DomainAccountObject:
     def __init__(self):
         self.account = HistoricalAccount()
-        super(DomainAccountObjects, self).__init__()
+        super(DomainAccountObject, self).__init__()
 
     def get_symbol_balance(self, symbol):
         symbol = self.get_symbol(symbol)
@@ -136,13 +142,7 @@ class DomainAccountObjects:
             return symbol.balance
         return 
     
-    def set_symbol_account_open(self, symbol):
-        symbol = self.get_symbol(symbol)
-        if symbol:
-            symbol.account_open = True
-            return 
-        return 
-    
+
     def transfer_to_symbol(self, amount : Union[float, int],
                             symbol:str, 
                             back: Literal["balance"] | Literal["amount"]="balance"
@@ -177,7 +177,7 @@ class DomainAccountObjects:
     def init_account(self,total_asset, transfer_fee ) ->  None | NoReturn:
         self.account.init(total_asset, transfer_fee)
 
-class DomainObjects(DomainSymbolObjects, DomainAccountObjects, list):
+class DomainObjects(DomainSymbolObject, DomainAccountObject, list):
     def __init__(self,domain) -> None:
         self.name = domain
         super(DomainObjects, self).__init__()
@@ -210,8 +210,8 @@ class DomainObjects(DomainSymbolObjects, DomainAccountObjects, list):
     def length(self)->int:
         return len(self.all_symbols)
     
-class SymbolTaskPool(DictBase):
-    # s  = SymbolTaskPool()
+class SymbolsTaskPool(DictBase):
+    # s  = SymbolsTaskPool()
     # d = s.new_domain(DomainObjects("demain1"))
     # d.add_symbol("SZ000002")
     # d.add_symbol("SZ000003")
@@ -240,17 +240,27 @@ class SymbolTaskPool(DictBase):
             self.__delattr__(domain_name)
             
 
-symbol_task_pool = SymbolTaskPool()
+symbols_task_pool = SymbolsTaskPool()
 
+@app.task
+def get_domain(domain_name):
+    try:
+        domain = symbols_task_pool.get_domain(domain_name=domain_name)
+        if not domain:
+            raise TasksRequestError(f'symbols_task_pool do not have  domain named {domain_name}')
+        else:
+            return domain_name,  ''
+    except Exception as e:
+        return '' , f'from task.update_pool_symbols:{e.__repr__()}'
 
 @app.task
 def update_pool_symbols(domain_name, task_symbols):
     # 有domain就更新symbol  没有就新建domain再添加   
     try:
-        domain = symbol_task_pool.get_domain(domain_name)
+        domain = symbols_task_pool.get_domain(domain_name)
         if  domain == None:
             # raise TasksRequestError("domain exist when update pool symbols, set update parameter to force mode if need forceful")
-            domain = symbol_task_pool.new_domain(DomainObjects(domain_name))
+            domain = symbols_task_pool.new_domain(DomainObjects(domain_name))
         for task in task_symbols:
             domain.add_symbol(task)
         return True, None  
@@ -261,8 +271,8 @@ def update_pool_symbols(domain_name, task_symbols):
 def create_pool_symbols(domain_name, task_symbols):
     # 删除旧的domain再添加domain，只有新建或者重建的时候
     try:
-        symbol_task_pool.del_domain(domain_name)
-        domain = symbol_task_pool.new_domain(DomainObjects(domain_name))
+        symbols_task_pool.del_domain(domain_name)
+        domain = symbols_task_pool.new_domain(DomainObjects(domain_name))
         for task in task_symbols:
             domain.add_symbol(task)
         return True, None  
@@ -270,12 +280,14 @@ def create_pool_symbols(domain_name, task_symbols):
         return '' , f'from task.create_pool_symbols:{e.__repr__()}'
 
 
+
+
 @app.task
 def get_task_with_length(node_id, domain, length):
     try:
-        domain = symbol_task_pool.get_domain(domain)
+        domain = symbols_task_pool.get_domain(domain)
         if not domain:
-            raise TasksRequestError('symbol_task_pool do not have  domain named {domain}')
+            raise TasksRequestError('symbols_task_pool do not have  domain named {domain}')
         domain.set_node_all_symbol_leisure(node_id)
         leisure_tasks_len = len(domain.leisure_symbols)
         if leisure_tasks_len == 0:
@@ -285,20 +297,20 @@ def get_task_with_length(node_id, domain, length):
         else:
             symbol_obj_list = domain.leisure_symbols[:leisure_tasks_len]
         domain.set_node_symbols_working(node_id=node_id, symbol_list=symbol_obj_list)
-        logger.warning(symbol_task_pool)
+        logger.warning(symbols_task_pool)
         
         return [symbol.name for symbol in symbol_obj_list], None
     except Exception as e:
-        # return symbol_task_pool,str(e)
+        # return symbols_task_pool,str(e)
         logger.warning(e.__repr__())
         return '' , f'from task.get_task_with_length:{e.__repr__()}'
 
 @app.task
 def get_task_with_list(node_id, domain, symbol_list):
     try:
-        domain = symbol_task_pool.get_domain(domain)
+        domain = symbols_task_pool.get_domain(domain)
         if not domain:
-            raise TasksRequestError(f'symbol_task_pool do not have  domain named {domain}')
+            raise TasksRequestError(f'symbols_task_pool do not have  domain named {domain} or tasks function request a wrong way')
         domain.set_node_all_symbol_leisure(node_id)
         
         if domain.get_node_symbols(node_id) != []:
@@ -311,13 +323,13 @@ def get_task_with_list(node_id, domain, symbol_list):
             raise TasksRequestError(f'{symbol_list} make empty task')
         return [symbol.name for symbol in symbols], None
     except Exception as e:
-        # return symbol_task_pool,str(e)
+        # return symbols_task_pool,str(e)
         logger.warning(e.__repr__())
         return '' , f'from task.get_task_with_list:{e.__repr__()}'
 
 
 
-# s  = SymbolTaskPool()
+# s  = SymbolsTaskPool()
 # d = s.new_domain(DomainObjects("demain1"))
 # d.add_symbol("SZ000002")
 # d.add_symbol("SZ000003")
@@ -341,9 +353,9 @@ def init_account(domain:str,
                   transfer_fee : Union[int,str]
                 ) -> Tuple[None | str , HistoricalAccount | Literal[""]]:
     try:
-        domain = symbol_task_pool.get_domain(domain)
+        domain = symbols_task_pool.get_domain(domain)
         if not domain:
-            raise TasksRequestError(f'symbol_task_pool do not have  domain named {domain}')
+            raise TasksRequestError(f'symbols_task_pool do not have  domain named {domain} or tasks function request a wrong way')
         if transfer_fee < 0 and transfer_fee >=1:
             raise TasksAccountError(f'transfer_fee number error when init account')
         domain.init_account(total_asset, transfer_fee)
@@ -354,13 +366,13 @@ def init_account(domain:str,
 @app.task
 def get_tasks_account(domain:str) -> Tuple[None | str , HistoricalAccount | Literal[""]]:
     try:
-        domain = symbol_task_pool.get_domain(domain)
+        domain = symbols_task_pool.get_domain(domain)
         if not domain:
-            raise TasksRequestError(f'symbol_task_pool do not have  domain named {domain}')
-        if domain.account.initiated == True:
+            raise TasksRequestError(f'symbols_task_pool do not have  domain named {domain} or tasks function request a wrong way')
+        if domain.account.prepared == True:
             return domain.account, ''
         else:
-            raise TasksAccountError("domain account is not initiated")
+            raise TasksAccountError("domain account is not prepared")
     except Exception as e:
         return None ,f'from task.get_tasks_account:{e.__repr__()}'
 
@@ -372,10 +384,10 @@ def account_transfer_to(
       symbol:str
     ) -> Tuple[ bool|None, Literal[""] | str]:
     try:
-        domain = symbol_task_pool.get_domain(domain)
+        domain = symbols_task_pool.get_domain(domain)
         if not domain:
-            raise TasksRequestError(f'symbol_task_pool do not have  domain named {domain}')
-        success = domain.transfer_to_symbol(amount, symbol, back="balance")
+            raise TasksRequestError(f'symbols_task_pool do not have  domain named {domain} or tasks function request a wrong way')
+        success = domain.transfer_to_symbol(amount=amount, symbol=symbol, back="balance")
         if success:
             return success, ''
     except Exception as e:
@@ -386,15 +398,22 @@ def open_account_symbol(
     #
         domain:str, 
         amount: Union[int,float],
-      symbol:str
+        symbol:str
     ) -> Tuple[ bool|None, Literal[""] | str]:
     try:
-        domain = symbol_task_pool.get_domain(domain)
+        domain = symbols_task_pool.get_domain(domain)
         if not domain:
-            raise TasksRequestError(f'symbol_task_pool do not have  domain named {domain}')
-        success = domain.transfer_to_symbol(amount, symbol, back="balance")
+            raise TasksRequestError(f'symbols_task_pool do not have  domain named {domain} or tasks function request a wrong way')
+        symbol = domain.get_symbol(symbol)
+        if symbol:
+            if symbol.account_open == False:
+                symbol.account_open = True
+            else:
+                raise TasksRequestError(f'from task.open_account_symbol:symbol account early opened')
+        else:
+            raise TasksRequestError("domain_get_symbol: symbol no exist")
+        success = domain.transfer_to_symbol(amount=amount, symbol=symbol.name, back="balance")
         if success:
-            domain.set_symbol_account_open(symbol)
             return success, ''
     except Exception as e:
         return None, f'from task.open_account_symbol:{e.__repr__()}'
@@ -407,9 +426,9 @@ def account_transfer_from(
         symbol:str
     ) -> Tuple[ bool | None, Literal[""] | str]:
     try:
-        domain = symbol_task_pool.get_domain(domain)
+        domain = symbols_task_pool.get_domain(domain)
         if not domain:
-            raise TasksRequestError(f'symbol_task_pool do not have  domain named {domain}')
+            raise TasksRequestError(f'symbols_task_pool do not have  domain named {domain} or tasks function request a wrong way')
         success = domain.transfer_from_symbol(amount, symbol, back="balance")
         if success:
             return success, ''
@@ -417,27 +436,100 @@ def account_transfer_from(
         return 0, f'from task.account_transfer_from:{e.__repr__()}'
 
 @app.task   
-def domain_get_symbol_info(domain:str, symbol:str) -> [ _SymbolObject | None, Literal[""] | str]:
+def domain_get_symbol_object(domain:str, symbol:str) -> [ _SymbolObject | None, Literal[""] | str]:
     try:
-        domain = symbol_task_pool.get_domain(domain)
+        domain = symbols_task_pool.get_domain(domain)
         if not domain:
-            raise TasksRequestError(f'symbol_task_pool do not have  domain named {domain}')
+            raise TasksRequestError(f'symbols_task_pool do not have  domain named {domain} or tasks function request a wrong way')
         symbol = domain.get_symbol(symbol)
         if symbol:
             return symbol, ''
         raise TasksRequestError("domain_get_symbol: symbol no exist")
     except Exception as e:
-        return None, f'from task.domain_get_symbol_info:{e.__repr__()}'
+        return None, f'from task.domain_get_symbol_object:{e.__repr__()}'
 
 @app.task   
 def domain_get_symbol_attr(domain:str, symbol:str,attr:str) -> Tuple[Any, Literal[""] | str]:
     try:
-        domain = symbol_task_pool.get_domain(domain)
+        domain = symbols_task_pool.get_domain(domain)
         if not domain:
-            raise TasksRequestError(f'symbol_task_pool do not have  domain named {domain}')
+            raise TasksRequestError(f'symbols_task_pool do not have  domain named {domain} or tasks function request a wrong way')
         symbol = domain.get_symbol(symbol)
         if symbol:
             return symbol.__getattr__(attr,None), ''
         raise TasksRequestError("domain_get_symbol: symbol no exist")
     except Exception as e:
         return None, f'from task.domain_get_symbol_attr:{e.__repr__()}'
+
+
+# @app.task
+# def get_domain(domain_name):
+
+#             return domain_name,  ''
+#     except Exception as e:
+#         return '' , f'from task.update_pool_symbols:{e.__repr__()}'
+
+
+@app.task   
+def domain_update_symbol_info(
+        domain_name   : str, 
+        symbol_name   : str, 
+        history  : Dict[str, list],
+        position : Dict[str, Any ],
+        orderbook: Dict[str, list],
+    ) -> Tuple[bool | None, Literal[""] | str]:
+    try:
+        domain = symbols_task_pool.get_domain(domain_name=domain_name)
+        if not domain:
+            raise TasksRequestError(f'symbols_task_pool do not have domain named {domain_name}')
+        else:
+            symbol = domain.get_symbol(symbol_name)
+            if symbol:
+                symbol.position.update(position)
+                symbol.history.update(history)
+                symbol.orderbook.update(orderbook)
+                return True, ''
+            raise TasksRequestError("domain_get_symbol: symbol no exist")
+    except Exception as e:
+        return None, f'from task.domain_update_symbol_info:{e.__repr__()}'
+
+
+@app.task   
+def domain_get_symbol_init_position(
+        domain   : str, 
+        symbol   : str, 
+    ) -> Tuple[dict | None, Literal[""] | str]:
+    try:
+        domain = symbols_task_pool.get_domain(domain)
+        if not domain:
+            raise TasksRequestError(f'symbols_task_pool do not have  domain named {domain} or tasks function request a wrong way')
+        symbol = domain.get_symbol(symbol)
+        if symbol:
+           return  symbol.position
+        raise TasksRequestError("domain_get_symbol: symbol no exist")
+    except Exception as e:
+        return None, f'from task.domain_get_symbol_init_position:{e.__repr__()}'
+
+
+
+
+@app.task   
+def domain_get_symbol_init_history(
+        domain   : str, 
+        symbol   : str, 
+        keep_window : int
+    ) -> Tuple[dict | None, Literal[""] | str]:
+    try:
+        domain = symbols_task_pool.get_domain(domain)
+        if not domain:
+            raise TasksRequestError(f'symbols_task_pool do not have  domain named {domain} or tasks function request a wrong way')
+        symbol = domain.get_symbol(symbol)
+        if symbol:
+            history = symbol.__getattr__("history")
+            if len(history.keys()) >= keep_window:
+                return  [history.popitem() for _ in range(keep_window)], ''
+            else:
+                raise TasksRequestError("domain_get_symbol_init_history: history length is not long enough")
+        raise TasksRequestError("domain_get_symbol: symbol no exist")
+    except Exception as e:
+        return [], f'from task.domain_get_symbol_init_history:{e.__repr__()}'
