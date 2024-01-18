@@ -13,11 +13,11 @@ class HistoricalDataFlows(DataFlows, DatetimeProperty):
         self.pre_data = self.preload(window=offset)
         logger.debug(f'DataFlows initiate: \n {self.pre_data }'
                     )
-        self.period_row  = self._get_period()
+        # self.period_row  = self._get_period()
         #len(histories_index) ==  histories_length - offset
         self.histories_index = self.histories.index[offset : ]
         self.lastest_histories_index_num = len(self.histories_index)
-        self._histories_end_index_num = 0
+        self._histories_end_index_num = -1
         logger.debug(f' init dataflows offset diff: {len(self.pre_data.index) - offset}; \
                     offset :{offset};  \
                      index:{self.pre_data.index[-1]} - {self.current_datetime_index}' )
@@ -50,7 +50,10 @@ class HistoricalDataFlows(DataFlows, DatetimeProperty):
 
     @property
     def previous_datetime_index(self):
-        return self.histories_index[self._histories_end_index_num -1]
+        if self._histories_end_index_num > 0:
+            return self.histories_index[self._histories_end_index_num -1]
+        else:
+            return None
 
     @property
     def next_period_index(self):
@@ -60,9 +63,14 @@ class HistoricalDataFlows(DataFlows, DatetimeProperty):
             #用在最后一次结算,当时买入当时卖出
             return self.histories_index[ self._histories_end_index_num ]
 
+    @property
+    def point(self):
+        return self._histories_end_index_num
+
     def update(self):
         self._histories_end_index_num += 1
         self.period_row = self._get_period()
+
         # print(self.current_datetime)
         # if self._histories_end_index_num == 19:
 

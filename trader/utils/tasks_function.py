@@ -1,31 +1,23 @@
-from typing import Dict, List
+
 from trader.amqp_server import tasks
 # from trader.assets import Order
 
 def get_domain(domain_name):
-    success, err = tasks.get_domain.delay(domain_name).get()
-    if success:
-        return success, ''
-        # logger.debug(f"update_local_symbols :{success}")
-        # config.update(update_local_symbols=False) 
+    domain, err = tasks.get_domain.delay(domain_name).get()
+    if domain:
+        return domain, ''
     else:
         # logger.error(err)
         return None , err
 
-def update_task_symbols(domain_name, task_symbols):
+def create_tasks_symbols(domain_name, task_symbols):
     # def update_task_symbols(domain_name, task_symbols ,is_new=False):
     """
         config set update_local_symbols will call this function
     """
-    # if is_new == False:
-    #     success, err = tasks.update_pool_symbols.delay(domain_name, task_symbols).get()
-    # else:
-        # success, err = tasks.create_pool_symbols.delay(domain_name, task_symbols).get()
-    success, err = tasks.create_pool_symbols.delay(domain_name, task_symbols).get()
+    success, err = tasks.update_pool_symbols.delay(domain_name, task_symbols).get()
     if success:
         return success, ''
-        # logger.debug(f"update_local_symbols :{success}")
-        # config.update(update_local_symbols=False) 
     else:
         # logger.error(err)
         return None , err
@@ -57,128 +49,3 @@ def domain_get_symbol_info(symbol: str) ->dict:
         # logger.error(err)
         return [] , err
 
-
-
-def account_load(domain):
-    success, err = tasks.get_tasks_account.delay(domain).get()
-    if success:
-        return success, ''
-    else:
-        # logger.error(err)
-        return '' , err
-
-def account_init(domain, total_asset, transfer_fee=0):
-    success, err = tasks.init_account.delay(domain, total_asset, transfer_fee).get()
-    if success:
-        return success, ''
-    else:
-        # logger.error(err)
-        return '' , err
-    
-
-def open_account_symbol(domain, amount, symbol):
-    #返回账号余额
-    success, err = tasks.open_account_symbol.delay(domain=domain, amount=amount, symbol=symbol).get()
-    if err:
-        return None, err
-    else:
-        # logger.error(err)
-        return success , err
-
-def account_transfer_to(domain, amount, symbol):
-    #返回账号余额
-    success, err = tasks.account_transfer_to.delay(domain, amount=amount, symbol=symbol).get()
-    if err:
-        return None, err
-    else:
-        # logger.error(err)
-        return success , err
-
-def account_transfer_from(domain, amount, symbol):
-    #返回账号余额
-    success, err = tasks.account_transfer_from.delay(domain, amount=amount, symbol=symbol).get()
-    if err:
-        return None, err
-    else:
-        # logger.error(err)
-        return success , err
-   
-def get_symbol_account_state(domain, symbol):
-    state, err = tasks.domain_get_symbol_attr.delay(domain, symbol, attr="account_open").get()
-    if err:
-        return None, err
-    else:
-        # logger.error(err)
-        return state, ''
-
-
-def domain_update_symbol_info(
-        domain    :str ,
-        symbol    :str ,
-        ohlcv     :dict,
-        analyses  :dict,
-        # position  :dict,
-        orderbook :dict
-    ) :
-
-    success, err = tasks.domain_update_symbol_info.delay(
-        domain_name=domain, 
-        symbol_name=symbol, 
-        ohlcv=ohlcv,
-        analyses=analyses,
-        # position=position,
-        orderbook=orderbook
-    ).get()
-    if err:
-        return None, err
-    else:
-        return success, err
-
-# def get_symbol_init_position(domain, symbol):
-#     position ,err = tasks.domain_get_symbol_init_position.delay(domain, symbol).get()
-#     if err:
-#         return None, err
-#     else:
-#         # logger.error(err)
-#         return position , err
-    
-# def get_symbol_init_history(domain, symbol, keep_window):
-#     history ,err = tasks.domain_get_symbol_init_history.delay(domain, symbol, keep_window).get()
-#     if err:
-#         return None, err
-#     else:
-#         # logger.error(err)
-#         return history , err
-
-def account_get_symbol_asset(domain, symbol, attr="balance"):
-    success, err = tasks.domain_get_symbol_attr.delay(domain, symbol, attr).get()
-    if err:
-        return None, err
-    else:
-        # logger.error(err)
-        return success , err
-    
-
-# def account_get_total_asset():
-#     success, err = tasks.account_get_total_asset.delay().get()
-#     if err:
-#         return None, err
-#     else:
-#         # logger.error(err)
-#         return success , err
-    
-# def domain_set_trading_signals(domain, signals):
-#     success, err = tasks.domain_set_signals.delay(domain_name=domain, signals=signals).get()
-#     if err:
-#         return None, err
-#     else:
-#     # logger.error(err)
-#         return success , err
-
-# def domain_get_trading_signals(domain):
-#     success, err = tasks.domain_get_signals.delay(domain).get()
-#     if err:
-#         return None, err
-#     else:
-#     # logger.error(err)
-#         return success , err

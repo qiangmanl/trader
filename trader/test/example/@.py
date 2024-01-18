@@ -22,3 +22,30 @@ def set_signals(a=1, b=0):
 # 示例用法
 result = set_signals(a=1,b=2)
 print(result)
+
+
+from functools import wraps
+
+def ta(name="ta", source=["close"]):
+    def decorator(func):   
+        def wrapper(self, **kw):
+            try: 
+                print(name, source)
+                return func(self, **kw) 
+            except Exception as e:
+                return '', f'from {func.__name__}:{e.__repr__()}'
+        return wrapper 
+    return decorator
+
+
+class A:
+    def __init__(self):
+        self.ta = ta
+    @ta(name="a",source=["ss"])
+    def f(self):
+        print(self)
+    
+
+a = A()
+
+a.f()

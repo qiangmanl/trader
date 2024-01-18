@@ -1,17 +1,14 @@
-import asyncio
 import os
 from typing import Dict, List, Tuple
-
 from trader import const, local, logger, config
 from trader.exception import DataIOError
 from trader.heartbeat import looper
-from trader.assets.historical import SingleNodeAccount, TasksAccount
 from trader.utils.tasks_function import \
-    domain_update_symbol_info, \
+    create_tasks_symbols, \
     get_domain, \
     get_task_symbols_with_length, \
-    get_tasks_symbol_list, \
-    update_task_symbols
+    get_tasks_symbol_list \
+    
 
 def init_project() -> None:
     #从文件中获取symbol
@@ -36,8 +33,6 @@ def init_project() -> None:
 
 def get_historical_config() -> Dict:
     historical_config = config.historical_config or {}
-    historical_config.setdefault("histoical_account_transfer_fee",0)
-    historical_config.setdefault("histoical_account_total_asset",1000000)
     logger.info(f"strategy initiated, node {local.node_id} start into historical model.")
     order_config = historical_config.get("historical_order",{})
     default_order_config = order_config.get("default",{})
@@ -79,6 +74,7 @@ def get_task_symbols(node_id, node_domain) -> List[str]:
         if symbol_list:
             logger.debug(f'catch_new_tasks return:{symbol_list}')
             config.remove("catch_new_tasks",temporary=False)
+            
         else:
             logger.error(f'catch_new_tasks error:{err}')
 
@@ -92,26 +88,16 @@ def get_task_symbols(node_id, node_domain) -> List[str]:
 
     else:
         symbol_list = []
-    config.update(temporary=False,tasks_symbols=symbol_list)
     if symbol_list == []:
-        logger.error("can get any symbol to list, have not set tasks_symbols or update_local_symbols in config?")
+        logger.error(f'can get any symbol to list. config.catch_new_tasks: {config.catch_new_tasks} \n \
+          config.tasks_symbols:{config.tasks_symbols} \
+        ')
         exit()
+    else:
+        config.update(temporary=False,tasks_symbols=symbol_list)    
     return symbol_list
 
 
-# def update_local_symbols(update: bool, is_new: bool) -> None:
-    # if update:
-        # success, err = update_task_symbols(domain_name=local.node_domain, task_symbols=local.all_tasks_symbol, is_new=is_new)
-
-
-def update_local_symbols() -> None:
-    logger.debug(f'update_local_symbols paramater:  {local.node_domain}:{local.all_tasks_symbol}')
-    success, err = update_task_symbols(domain_name=local.node_domain, task_symbols=local.all_tasks_symbol)
-    if success:
-        logger.debug(f'update_task_symbols return :{success}')
-    else:
-        logger.error(err)
-        exit()
 
 def get_update_param(update_symbols_param : str | int | bool):
     if isinstance(update_symbols_param, str):
@@ -128,7 +114,21 @@ def get_update_param(update_symbols_param : str | int | bool):
         return (None, None)
     return update, is_new
 
-# 
+
+def no_domain_or_create():
+    domain, _  = get_domain(local.node_domain) 
+    if domain == None:
+        logger.debug(f'create new domain  {local.node_domain} on tasks')
+        create_tasks_symbols(domain_name=local.node_domain, task_symbols=local.all_tasks_symbol)
+        return True
+    else:
+        logger.debug(f'domain  {local.node_domain} early on tasks')
+    if config.create_new_domain == True:
+        logger.warning(f"domain  {local.node_domain} early on tasks, config create_new_domain turn to false automatically")
+    config.update(create_new_domain=False)
+    return False
+
+
 def run_strategy( Strategy,*args, **kwargs ) -> None:
     """
     Example:
@@ -140,58 +140,14 @@ def run_strategy( Strategy,*args, **kwargs ) -> None:
     if not config.make_data:
         init_project()
 
-
-
-    async def run( strategy , **kwargs):
-        
-        await asyncio.sleep(0)
-        strategy.data_flows.update()
-        strategy.update()
-        strategy.start()
-        # strategy.SZ002212.history
-        if strategy.wpc.pace == 0:
-            # strategy.data_flows.histories = strategy.data_flows.histories[strategy.wpc.keep_point_window : ]  
-            try:
-                for symbol in strategy.symbol_objects:
-                        history = getattr(strategy, symbol).history[:strategy.wpc.keep_point_window]
-                        history.index = history.index.astype("str")
-                        ohlcv=history.loc[:,history.columns[:5]]
-                        analyses = history.loc[:,history.columns[5:]]
-                        #合并方式:pd.concat([ohlcv,analyses],axis=1)# 支持一方合并空df 
-                        orderbook = getattr(strategy, symbol).orderbook[:strategy.wpc.keep_point_window]
-                        orderbook.index = orderbook.index.astype("str")
-                        domain_update_symbol_info(
-                            domain=local.node_domain, 
-                            symbol=symbol,
-                            ohlcv=ohlcv.T.to_dict(orient='list'),
-                            analyses = analyses.T.to_dict(orient='list'),
-                            orderbook=orderbook.T.to_dict(orient="list")
-                        )
-       
-            except Exception as e:
-                logger.error(e.__repr__())
-                exit()
-            # if config.update_tasks_domain == "new":
-            #     config.update(update_tasks_domain=False)
-            #     looper.stop()
-        #不做修改
-        if strategy.data_flows.slided_end:
-            try:
-                strategy.positions.settlement_all_symbol()
-                strategy.update()
-                strategy.end()
-                looper.stop()
-            except Exception as e:
-                logger.error(e)
-                looper.stop()
         
     #策略内定义优先
     strategy_heartbeat_config = get_strategy_heartbeat_config()
 
-    index_name = getattr(Strategy,"index_name", None) or \
+    custom_index_name = getattr(Strategy,"index_name", None) or \
         config.setdefault("strategy_index_name","trader_name")
 
-    ohlcv_columns = get_custom_columns(Strategy)
+    custom_ohlcv_columns = get_custom_columns(Strategy)
 
     strategy = Strategy(*args, **kwargs)
 
@@ -201,53 +157,35 @@ def run_strategy( Strategy,*args, **kwargs ) -> None:
         #历史数据使用长度
         #config historical_config
         historical_config = get_historical_config()
-        # import pdb
-        # pdb.set_trace()
-        total_asset = getattr(strategy,"histoical_account_total_asset", None) \
-            or  historical_config.get("histoical_account_total_asset")
-        transfer_fee = getattr(Strategy,"histoical_account_transfer_fee", None) \
-            or historical_config.get("histoical_account_transfer_fee")
 
         histories_length = getattr(strategy,"histories_length", None) or \
             historical_config.setdefault("histories_length",20000)
     
         config.update(temporary=False,historical_config=historical_config)
-
-
+        if config.create_new_domain and not config.node_stand_alone:
+            no_domain_or_create()
         if config.node_stand_alone:
             # is_new = True
+            logger.debug("strategy use node_stand_alone")
             symbol_list = config.tasks_symbols
-            account = SingleNodeAccount(total_asset=total_asset,transfer_fee=transfer_fee)  
+
         else:
             # if config.update_tasks_domain:
-                
-            update_local_symbols()
-            account = TasksAccount.init_account(domain=local.node_domain, total_asset=total_asset, transfer_fee=transfer_fee)
-        
+            no_domain_or_create()
             symbol_list = get_task_symbols(local.node_id, node_domain=local.node_domain)
-        logger.debug(f'{account}')
-        logger.debug(f'{get_domain(local.node_domain)}')
-        if account.prepared:
-            logger.info(f"account {account.name} init success.")    
-        else:
-            logger.info(f"account {account.name} init failed.")  
+            logger.debug(f'{get_domain(local.node_domain)}') 
 
         strategy.before_start_define(
             column_only_close = config.column_only_close,
             symbol_list       = symbol_list,
-            keep_window = config.keep_dataflow_window
-        )
-
-        strategy.init_data_flows(
-            histories_length,
-            ohlcv_columns,
-            index_name
-        )
-        #config.node_stand_alone 决定使用哪个account 对象
-        strategy.init_asset(
-            account,
+            histories_length=histories_length,
+            keep_window = config.keep_dataflow_window,
+            custom_index_name=custom_index_name,
+            custom_ohlcv_columns=custom_ohlcv_columns,
             **historical_config["historical_order"]
         )
+        
+        #config.node_stand_alone 决定使用哪个account 对象
 
         strategy.init_symbol_objects()
 
@@ -260,11 +198,16 @@ def run_strategy( Strategy,*args, **kwargs ) -> None:
     # strategy.init_symbol_objects()
     # config.update(update_tasks_domain=False) 
     #在策略执行前定义
+
     if getattr(strategy,"init_custom",None):
         strategy.init_custom(*args, **kwargs)
+        # 如果自定义还没有ta 则ta使用策略自带的ta
+        if getattr(strategy, "ta",None) == None:
+            from trader.strategy import TechnicalAnalyses
+            strategy.create_ta(TechnicalAnalyses)
      #注册心跳
     looper.register(
-        run,
+        strategy.run,
         strategy=strategy,
         heartname=strategy_heartbeat_config["heartname"],
         interval=strategy_heartbeat_config["interval"],

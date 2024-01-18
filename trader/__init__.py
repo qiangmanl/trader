@@ -11,6 +11,8 @@ from trader.utils.logger import Logger
 
 local   = Local()
 
+
+
 try:
     config = Config("config.json")
     if config.log == None:

@@ -1,128 +1,164 @@
-from trader import logger
+import pandas as pd
 from trader.utils.base import DictBase
-from trader.utils.tasks_function import \
-    account_init, \
-    account_load, \
-    account_transfer_to, \
-    account_get_symbol_asset \
-    # account_get_total_asset
+from trader.assets import OrderBookPattern
+from trader.utils.base import SymbolsPropertyDict
 
-class HistoricalAccountBase(DictBase):
 
-    def transfer_to_account(self):
-        raise NotImplementedError(f'{self.__class__.__name__}:transfer_to')
+class _SymbolObject(DictBase):
+    def __init__(self,name:str)->None:
+        self.name = name
+        self.balance = 0
+        self.state = "open_account"
+        self.history = None
+        self.position = None
+        self.property_dict = SymbolsPropertyDict()
+        self.orderbook = pd.DataFrame(columns=OrderBookPattern.keys)
 
-    def transfer_from_account(self):
-        raise NotImplementedError(f'{self.__class__.__name__}:transfer_to')
+    def set_state(self, state):
+        self.state = state
 
-    def get_symbol_asset(self):
-        raise NotImplementedError(f'{self.__class__.__name__}:get_symbol_asset')
+
+class SymbolsObject(DictBase):
+    # s.update_symbol("a")
+    #{'name': 'a', 'balance': 0, 'state': 'open_account'}
+    def update_symbol(self, symbol_name:str) -> _SymbolObject:
+        symbol_obj = _SymbolObject(name=symbol_name)
+        self.__setattr__(symbol_name ,symbol_obj)
+        return symbol_obj
+
+
+class AccountObject:
+    def __init__(self):
+        super(AccountObject, self).__init__()
+
+    def get_symbol_balance(self, symbol):
+        symbol = self.get_symbol(symbol)
+        if symbol:
+            return symbol.balance
+        return 
     
-    def get_total_asset(self):
-        raise NotImplementedError(f'{self.__class__.__name__}:get_total_asset')
-
-class SingleNodeAccount(HistoricalAccountBase):
-    name = "single_node_historical_account"
-    """
-    Usage:
-        a = SingleNodeAccount(total_asset=2000000,transfer_fee=0.00000)
-        a.transfer_to(10000,"SZ000001")
-        a.get_symbol_asset("SZ000001")#10000
-    """
-
-    def __init__(self, total_asset, transfer_fee):
-        self.transfer_fee = transfer_fee
-        self.total_asset = total_asset
-        self.symbol_asset = DictBase()
-        self.prepared = True
-        
-    def transfer_from_account(self, balance, symbol) -> float | None:
-        if symbol  in self.symbol_asset:
-            if (self.total_asset  > balance + balance * self.transfer_fee):
-                self.total_asset -= balance + balance * self.transfer_fee
-            else:
-                balance = self.total_asset - self.total_asset * self.transfer_fee
-                self.total_asset  = 0
-            symbol_asset_balnce = self.symbol_asset.__getattr__(symbol)
-            self.symbol_asset.__setattr__(symbol, balance + symbol_asset_balnce) 
-            return balance
-        return 0
-
-    def get_symbol_asset(self, symbol):
-        return self.symbol_asset.__getattr__(symbol)
+    def transfer_to_symbol(self, balance, symbol):
+        symbol = self.get_symbol(symbol)
+        if symbol:
+            symbol.balance += balance
+        return symbol.balance
     
 
-class TasksAccount(HistoricalAccountBase):
-    name = "tasks_historical_account"
+class SymbolManager:
 
     def __init__(self):
-        self.prepared = None
-        self.total_asset = None
-        self.transfer_fee = None
-        self.domain = None
+        self.updated_symbols = SymbolsObject()
+        super(SymbolManager, self).__init__()
 
-    @classmethod
-    def init_account(cls, domain, total_asset, transfer_fee):
-        success, err = account_init(domain, total_asset, transfer_fee)
-        if err:
-            logger.error(err)
-            exit()
-        self = cls()
-        self.prepared = True
-        self.total_asset = success.get("total_asset",None)
-        self.transfer_fee = success.get("transfer_fee",None)
-        self.domain = domain
-        return self
+    def symbol_exist(self, symbol_name:str):
+        return  symbol_name in self.updated_symbols.keys() or False
 
-    @classmethod
-    def load_account(cls, domain):
-        success, err = account_load(domain)
-        if err:
-            logger.error(err)
-            exit()
-        self = cls()
-        self.prepared = True
-        self.total_asset = success.get("total_asset",None)
-        self.transfer_fee = success.get("transfer_fee",None)
-        self.domain = domain
-        return self
+    def add_symbol(self,symbol_name : str) -> None:
+        if self.symbol_exist(symbol_name) == False:
+            symbol_obj = self.updated_symbols.update_symbol(symbol_name)
+            self.append(symbol_obj)
+            setattr(self, symbol_obj.name, symbol_obj)
+            return True
+        return False
+    
+    def del_all_symbol(self):
+        if self.length > 0:
+            for _ in range(self.length):
+                symbol = self.pop(0)
+                self.updated_symbols.pop(symbol.name)
 
-    def reload(self):
-        if self.prepared:
-            success, err = account_load(self.domain)
-            if err:
-                logger.error(err)
-                exit()
-            self.total_asset = success.get("total_asset",None)
-            self.transfer_fee = success.get("transfer_fee",None)
+    def get_symbol(self, symbol_name) -> _SymbolObject:
+        return self.updated_symbols.__getattr__(symbol_name, None) 
+
+    def set_symbol_state(self, symbol_name, state):
+        symbol = self.get_symbol(symbol_name)
+        if symbol:
+            symbol.set_state(state)
+
+
+class DomainSymbols(AccountObject, SymbolManager, list):
+    def __init__(self,domain_name) -> None:
+        self.name = domain_name
+        # self.ts = TradingSignals()
+        super(DomainSymbols, self).__init__()
+
+
+
+
+
+
+
+# class TasksAccount(HistoricalAccountBase):
+#     name = "tasks_historical_account"
+
+#     def __init__(self):
+#         self.prepared = None
+#         self.total_asset = None
+#         self.transfer_fee = None
+#         self.domain = None
+
+#     @classmethod
+#     def init_account(cls, domain, total_asset, transfer_fee):
+#         success, err = account_init(domain, total_asset, transfer_fee)
+#         if err:
+#             logger.error(err)
+#             exit()
+#         self = cls()
+#         self.prepared = True
+#         self.total_asset = success.get("total_asset",None)
+#         self.transfer_fee = success.get("transfer_fee",None)
+#         self.domain = domain
+#         return self
+
+#     @classmethod
+#     def load_account(cls, domain):
+#         success, err = account_load(domain)
+#         if err:
+#             logger.error(err)
+#             exit()
+#         self = cls()
+#         self.prepared = True
+#         self.total_asset = success.get("total_asset",None)
+#         self.transfer_fee = success.get("transfer_fee",None)
+#         self.domain = domain
+#         return self
+
+#     def reload(self):
+#         if self.prepared:
+#             success, err = account_load(self.domain)
+#             if err:
+#                 logger.error(err)
+#                 exit()
+#             self.total_asset = success.get("total_asset",None)
+#             self.transfer_fee = success.get("transfer_fee",None)
         
 
-    def transfer_from_account(self, domain, amount, symbol):
-        amount, err = account_transfer_to(domain, amount, symbol)
-        if amount:
-            return amount
-        else:
-            logger.error(err)
-            return None
+#     def transfer_from_account(self, domain, amount, symbol):
+#         amount, err = account_transfer_to(domain, amount, symbol)
+#         if amount:
+#             return amount
+#         else:
+#             logger.error(err)
+#             return None
         
-    def get_symbol_asset(self, domain, symbol):
-        #symbol不存在 需要相关处理逻辑
-        asset, err = account_get_symbol_asset(domain=domain, symbol=symbol) 
-        logger.debug(asset)
-        #获得tasks symbol asset之后更新本地，切不要从本地直接获得
-        if err:
-            logger.error(err)
-            return 
-        else:
-            return asset
+#     def get_symbol_asset(self, domain, symbol):
+#         #symbol不存在 需要相关处理逻辑
+#         asset, err = account_get_symbol_asset(domain=domain, symbol=symbol) 
+#         logger.debug(asset)
+#         #获得tasks symbol asset之后更新本地，切不要从本地直接获得
+#         if err:
+#             logger.error(err)
+#             return 
+#         else:
+#             return asset
         
-    # def get_total_asset(self):
-    #     total_asset, err = account_get_total_asset() 
-    #     #获得tasks symbol asset之后更新本地，切不要从本地直接获得
-    #     self.tasks_symbol_asset =  total_asset
-    #     if total_asset:
-    #         return total_asset
-    #     else:
-    #         logger.error(err)
-    #         return        
+#     # def get_total_asset(self):
+#     #     total_asset, err = account_get_total_asset() 
+#     #     #获得tasks symbol asset之后更新本地，切不要从本地直接获得
+#     #     self.tasks_symbol_asset =  total_asset
+#     #     if total_asset:
+#     #         return total_asset
+#     #     else:
+#     #         logger.error(err)
+#     #         return        
   

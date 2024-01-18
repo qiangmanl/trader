@@ -38,8 +38,8 @@ class HistoricalPosition(DictBase):
     #     self.short_profit = 0
     #     self.long_qty = 0
     #     self.short_qty = 0
-    #     self.short_lost_change = np.nan
-    #     self.long_lost_change = np.nan
+    #     self.short_change = np.nan
+    #     self.long_change = np.nan
 
     @classmethod
     def init(cls, symbol, balance, leverage, long_fee, short_fee):
@@ -56,8 +56,8 @@ class HistoricalPosition(DictBase):
         self.short_profit = 0
         self.long_qty = 0
         self.short_qty = 0
-        self.short_lost_change = np.nan
-        self.long_lost_change = np.nan
+        self.short_change = np.nan
+        self.long_change = np.nan
         return self
 
     @classmethod
@@ -140,17 +140,29 @@ class HistoricalPosition(DictBase):
     def calc_max_lost_change(self):
 
         if self.latest_price < self.price:
-            self.short_lost_change = np.nan
+        #     self.short_change = np.nan
             if self.long_qty > 0:
-                self.long_lost_change = (self.latest_low - self.price) / (self.price + 0.00000000000000000001) * self.leverage
+                # 最大亏损点
+                self.long_change = (self.latest_low - self.price) / (self.price + 0.00000000000000000001) * self.leverage
             else:
-                self.long_lost_change = np.nan
-        else:
-            self.long_lost_change = np.nan
+                # 无订单无需计算
+                self.long_change = np.nan
             if self.short_qty > 0:
-                self.short_lost_change = (self.latest_high - self.price) / (self.price + 0.00000000000000000001) * self.leverage
+                # 最低赢利点
+                self.short_change = (self.latest_price - self.price) / (self.price + 0.00000000000000000001) * self.leverage
             else:
-                self.short_lost_change = np.nan
+                self.short_change = np.nan
+        else:
+
+            if self.long_qty > 0:
+                self.long_change = (self.latest_price - self.price) / (self.price + 0.00000000000000000001) * self.leverage
+            else:
+                self.long_change = np.nan
+
+            if self.short_qty > 0:
+                self.short_change = -(self.latest_high - self.price) / (self.price + 0.00000000000000000001) * self.leverage
+            else:
+                self.short_change = np.nan
 
     
     def set_latest_ohlc(self,ohlc):

@@ -50,9 +50,7 @@
                 "short_fee": 0.0,
                 "leverage": 1
             }
-        },
-        "histoical_account_transfer_fee": 0,
-        "histoical_account_total_asset": 1000000
+        }
     },
     "tasks_symbols": [
         "testsymbol1"

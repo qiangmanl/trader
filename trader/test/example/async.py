@@ -33,14 +33,6 @@ asyncio.run(async_main())
 
 count = 0
 import time
-while True:
-    count += 1
-    x = 
-    t1 = time.time()
-    if count % (0.001 * (1 / count)) != 0:
-        print("a")
-        print(t1 - time.time())
-
 d = {"a":[1,2,3],"b":[344,223]}
 all_task = []
 for value in d.values():
@@ -64,3 +56,14 @@ class MyClass:
 # 创建实例并调用属性
 obj = MyClass()
 obj.current_balance
+
+class A:
+
+    def ta(self, name="ta", source=["close"]):
+        @wraps(func)
+        def wrapper(**kwarg):
+            try:
+                return func(self, name, source, **kwarg)
+            except Exception as e:
+                return '', f'from {func.__name__}:{e.__repr__()}'
+        return wrapper

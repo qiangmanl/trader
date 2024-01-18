@@ -16,6 +16,8 @@ class LocalAccountError(BaseCostomError):
 class DataIOError(BaseCostomError):
     pass
 
+class SymbolProcessError(BaseCostomError):
+    pass
 
 # try:
 #     1/0

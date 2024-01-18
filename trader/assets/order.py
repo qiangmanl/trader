@@ -63,16 +63,16 @@ class Order(DictBase):
 class OrderBookPattern:
     price    = np.nan
     long_qty = np.nan
-    long_lost_change  = np.nan
+    long_change  = np.nan
     value    = np.nan
     short_qty= np.nan
-    short_lost_change = np.nan
+    short_change = np.nan
     @classmethod
     def create(cls,position):
         cls.price     = position.latest_price
         cls.long_qty  = position.long_qty
-        cls.long_lost_change = position.long_lost_change
-        cls.short_lost_change = position.short_lost_change
+        cls.long_change = position.long_change
+        cls.short_change = position.short_change
         cls.short_qty = position.short_qty
         cls.value     = position.value
         return cls
@@ -83,9 +83,9 @@ class OrderBookPattern:
         orderbook = {
             "price"       : cls.price,
             "long_qty"    : cls.long_qty,
-            "long_lost_change"  : cls.long_lost_change,
+            "long_change"  : cls.long_change,
             "short_qty"   : cls.short_qty,
-            "short_lost_change" : cls.short_lost_change,
+            "short_change" : cls.short_change,
             "value"       : cls.value
         }
         return orderbook
