@@ -54,12 +54,13 @@ class HistoricalPosition(DictBase):
     def set_balance(self, balance):
         self.symbol_balance += balance
 
-    def settlement_all(self):
-        if self.long_qty > 0:
-            self.long_sell(self.long_qty, self.latest_price)
-        if self.short_qty > 0:
-            self.short_buy(self.short_qty, self.latest_price)
-  
+    # def add_balance(self, balance):
+    #     self.symbol_balance += balance
+
+    # def reduce_balance(self, balance):
+    #     assert  balance < self.value
+    #     self.symbol_balance -= balance
+        
     def get_margin(self):
 
         return ( 
@@ -69,37 +70,33 @@ class HistoricalPosition(DictBase):
                 / self.symbol_balance
         )
 
-    def long_buy(self, qty):
+    def long_buy(self, qty, price):
         #buy direction 1
-        cost = (qty + self.long_fee) * self.leverage * self.latest_price 
-        if (self.symbol_balance - self.long_profit - cost) / self.symbol_balance > self.margin_ratio * 2:
+        trade_vol = (self.long_qty + qty + self.long_fee) * price * self.leverage
+        if (self.symbol_balance - trade_vol ) / trade_vol > self.margin_ratio:
             self.long_qty += qty
-            self.symbol_balance -= self.long_fee * self.leverage * self.latest_price 
+            self.symbol_balance -= self.long_fee * self.leverage * price
         else:
             logger.warning(f"{self.symbol} long_buy does not have sufficient funds to cover the margin")
 
-    def long_sell(self, qty):
-        if  self.long_qty < qty:
-            logger.warning(f'long sell quantity must be small than long quantity you holding')
-            return
+    def long_sell(self, qty, price):
+        assert self.long_qty >= qty, f'reducing qty must be more than {self.long_qty}'
         self.long_qty -= qty 
-        self.symbol_balance -= self.long_fee * self.leverage * self.latest_price 
+        self.symbol_balance -= self.long_fee * self.leverage * price
     
-    def short_sell(self, qty):
+    def short_sell(self, qty, price):
         #buy direction 1
-        cost = (qty + self.short_fee) * self.leverage * self.latest_price 
-        if (self.symbol_balance - self.long_profit - cost) / self.symbol_balance  > self.margin_ratio * 2:
+        if self.symbol_balance - (self.short_qty + qty + self.short_fee) \
+              * price * self.leverage > self.margin_ratio:
             self.short_qty += qty
-            self.symbol_balance -= self.short_fee * self.leverage * self.latest_price 
+            self.symbol_balance -= self.short_fee * self.leverage * price
         else:
             logger.warning(f"{self.symbol} short_sell does not have sufficient funds to cover the margin")
 
-    def short_buy(self, qty):
-        if  self.short_qty < qty:
-            logger.warning(f'short sell quantity must be small than short quantity you holding')
-            return
+    def short_buy(self, qty, price):
+        assert self.short_qty >= qty, f'reducing qty must be more than {self.short_qty}'
         self.short_qty -= qty 
-        self.symbol_balance -= self.short_fee * self.leverage * self.latest_price 
+        self.symbol_balance -= self.short_fee * self.leverage * price
 
     def when_margin_call(self):
         if self.long_qty > 0:
@@ -146,7 +143,7 @@ class HistoricalPosition(DictBase):
 
     
     def set_latest_ohlc(self,ohlc):
-        self.latest_price = ohlc.open
+        self.latest_price = ohlc.close
         self.latest_high = ohlc.high
         self.latest_low = ohlc.low
 
@@ -161,15 +158,17 @@ class HistoricalPosition(DictBase):
         price = order.price
         match (order.action,  order.direction):
             case ("sell",-1):
-                self.short_sell(qty)
+                self.short_sell(qty, price)
             case ("buy",1): 
-                self.long_buy(qty)
+                self.long_buy(qty, price)
             case ("sell",1): 
-                self.long_sell(qty)
+                self.long_sell(qty, price)
             case ("buy",-1): 
-                self.short_buy(qty)
+                self.short_buy(qty, price)
+                # cast "sell":
 
     def update_position(self, ohlc, current_datetime):
+
         if current_datetime == self.current_datetime:
             return 
         self.set_current_datetime(current_datetime)
@@ -189,13 +188,30 @@ class HistoricalPosition(DictBase):
 
 
 
-class HistoricalPositionMap(DictBase):
-    def add_position(self,symbol:str, position : HistoricalPosition):
-        self.__setattr__(symbol, position)
 
-    def settlement_all_symbol(self)->None:
-        try:
-            for position in self.values():
-                position.settlement_all()
-        except Exception as e:
-            logger.error(f'HistoricalPositionMap settlement_all_symbol error because:{e}')
+
+
+
+
+# p = HistoricalPosition.init(symbol,20000,2,0,0)
+# p.open(21)
+# o = Order( symbol, action="sell", qty=1, price=21,islong=False, order_type="")
+# o.finish_historical_order()
+# # 买入当前时间片 不更新持仓
+# p.update_order(o)
+# p.update_position(24,"23-1-1")
+# p.update_position(25,"23-1-2")
+
+
+# o = Order( symbol, action="sell", qty=1, price=25,islong=False, order_type="")
+# o.finish_historical_order()
+# # 买入当前时间片 不更新持仓
+# p.update_order(o)
+# p.update_position(26,"23-1-3")
+# p.update_position(27,"23-1-4")
+
+# o = Order( symbol, action="buy", qty=6, price=27,islong=False, order_type="")
+# o.finish_historical_order()
+# # 买入当前时间片 不更新持仓
+# p.update_order(o)
+# p.update_position(28,"23-1-5")

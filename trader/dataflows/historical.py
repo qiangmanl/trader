@@ -6,8 +6,7 @@ class HistoricalDataFlows(DataFlows, DatetimeProperty):
     def __init__(self,histories_data, length, offset) -> None:
         super().__init__()  
         self.initiated = True
-
-        self.histories = histories_data[:length]
+        self.histories = histories_data[len(histories_data) - length : ]
         self.histories_generator = self._gen_histories_generator()
         #为了时间同步,也为了尽早更新recently_period
         self.pre_data = self.preload(window=offset)

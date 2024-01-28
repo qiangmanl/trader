@@ -179,3 +179,61 @@ def MACD(prices, fastperiod=12, slowperiod=26, signalperiod=9):
                                     slowperiod=slowperiod, 
                                     signalperiod=signalperiod)
     return macd[-1] - signal[-1]
+
+
+
+
+
+import pandas as pd
+
+# 假设有 100 个 DataFrame，每个包含一个 "close" 列
+df_list = [pd.DataFrame({'close': range(i, i + 5)}) for i in range(1, 201, 2)]
+
+# 合并所有 DataFrame
+merged_df = pd.concat([df['close'] for df in df_list], axis=1, keys=[f'df{i}_close' for i in range(1, len(df_list)+1)])
+
+# 计算 "close" 列的平均值
+average_close = merged_df.mean(axis=1)
+
+from matplotlib import pyplot as plt
+x = pd.concat ([((1 + symbol.orderbook.value.pct_change().fillna(0)).cumprod() ) for symbol in self.symbols], axis=1, keys=[symbol.name for symbol in self.symbols])
+y = pd.concat ([((1 + symbol.orderbook.price.pct_change().fillna(0)).cumprod() ) for symbol in self.symbols], axis=1, keys=[symbol.name for symbol in self.symbols])
+x_mean =  x.mean(axis=1)
+y_mean =  y.mean(axis=1)
+
+#最大值 最小值 最后值 index
+max_x_mean_index =  x_mean.idxmax()
+min_x_mean_index =  x_mean.idxmin()
+latest_x_mean_index =  x_mean.index[-1]
+
+#收益价格 
+plt.plot(x.index, x_mean,lw=1, label='Strategy Returns', color='green')
+# 标的价格
+plt.plot(y.index, y_mean,lw=1, label='Underlying Returns', color='blue')
+# plt.plot(y.index, y_mean,lw=1, label='price', color='blue')
+plt.legend(loc="upper left")
+#最大值
+plt.scatter(max_x_mean_index, x_mean[max_x_mean_index], color='red', marker='d', s=100)
+plt.text(max_x_mean_index,  x_mean[max_x_mean_index], f'Max: {x_mean[max_x_mean_index]:.4f}', color='red',verticalalignment='bottom', horizontalalignment='left')
+
+# 最小值
+plt.scatter(min_x_mean_index, x_mean[min_x_mean_index], color='green', marker='d', s=100)
+plt.text(min_x_mean_index,  x_mean[min_x_mean_index], f'Min: {x_mean[min_x_mean_index]:.4f}',color='green', verticalalignment='bottom', horizontalalignment='left')
+
+# 最后值
+plt.scatter(latest_x_mean_index, x_mean[latest_x_mean_index], color='black', marker='o', s=100)
+plt.text(latest_x_mean_index,  x_mean[latest_x_mean_index], f'final: {x_mean[latest_x_mean_index]:.4f}',color='black', verticalalignment='bottom', horizontalalignment='left')
+
+
+#最大回撤
+peak_x  = x_mean.cummax()
+x_max_drawdown = ((peak_x - x_mean) / peak_x)
+x_max_drawdown_index = x_max_drawdown.idxmax()
+plt.scatter(x_max_drawdown_index, x_mean.min(), color='black', marker='d')
+plt.text(x_max_drawdown_index, x_mean.min(), f'Max Drawdown: - {x_max_drawdown[x_max_drawdown_index]:.4%}', color='black', verticalalignment='bottom', horizontalalignment='left')
+
+plt.title("Strategy Returns Table")
+# plt.legend(loc="upper left")
+plt.show()
+
+

@@ -2,7 +2,7 @@ import asyncio
 import os
 from typing import List
 import pandas as pd
-from trader.exception import LocalAccountError
+from trader.exception import  StrategyInitError, StrategyRunError
 from trader.heartbeat import looper
 # from trader.utils.tasks_function import  get_symbol_account_state, get_symbol_init_position, open_account_symbol
 from trader.utils.tools import str_pd_datetime
@@ -101,21 +101,26 @@ class HistoricalStrategy(StrategyBase):
                 history = self.csv_to_history(file_name, ohlcv_columns, index_name)
                 histories.append(history)
             histories_data = pd.concat(histories, axis=1, keys=self.symbol_names)
+            real_histories_length = len(histories_data.index)
+            if histories_length > real_histories_length:
+                logger.warning(f"set real histories length {real_histories_length} replace config histories length")
+                histories_length = real_histories_length
+            if histories_length < self.wpc.keep_point_window  * 2:
+                raise StrategyInitError(f"real histories length:{histories_length} need keep two times to point window:{self.wpc.keep_point_window }")
             # if self.new_project_mode == True:
+
             #     offset = 0 * keep_window
        
             # else:
             #     offset = 1 * keep_window
                 # histories_data = 
-
             return HistoricalDataFlows(
                 histories_data,
                 length=histories_length,
                 offset=self.wpc.keep_point_window 
             )
+
         except Exception as e:
-            # import pdb
-            # pdb.set_trace()
             logger.error(e.__repr__())
             exit()          
 
@@ -140,13 +145,13 @@ class HistoricalStrategy(StrategyBase):
                 leverage = symbol_order_config.setdefault("leverage", default_order_config["leverage"])
                 try:
                     if balance <= 0:
-                        raise LocalAccountError(f"account set balance number too small")
+                        raise StrategyInitError(f"account set balance number too small")
                     if long_fee < 0 or long_fee >= 1:
-                        raise LocalAccountError("account set long_fee number error")
+                        raise StrategyInitError("account set long_fee number error")
                     if short_fee < 0 or  short_fee >= 1:
-                        raise LocalAccountError("account set short_fee number error")
+                        raise StrategyInitError("account set short_fee number error")
                     if leverage < 1  or isinstance(leverage, int)==False:
-                        raise LocalAccountError("account set leverage  error")
+                        raise StrategyInitError("account set leverage  error")
                 except Exception as e:
                     logger.error(f'error from init_asset:{e.__repr__()}')
                     exit()
@@ -169,7 +174,7 @@ class HistoricalStrategy(StrategyBase):
         return local.node_domain
 
     def get_trading_quota(self, symbol:str):
-        price = self.get_previous_history(symbol)["close"]
+        price = self.get_current_history(symbol)["open"]
         return price
 
     def get_current_ohlc(self,symbol):
@@ -178,7 +183,7 @@ class HistoricalStrategy(StrategyBase):
 
     def _update_orders(self):
         """
-            此时处理的订单价格是该symbol 前period的close 或者是当前period的open
+            此时处理的订单价格是该symbol 前period的close 
         """
         # [{'symbol': 'SZ002212', 'direction': 1, 'action': 'buy', 'qty': 1, 'price': None, 'order_type': 'historical', 'status': 'pending', 'fil_qty': 0, 'qty_filled_rate': 0.9}]
         if self.has_signal == True:
@@ -191,16 +196,13 @@ class HistoricalStrategy(StrategyBase):
                     if ( price > 0) == False:
                         #此次交易信号作废
                         continue
-
                     position = self.get_position(order.symbol)
-                    order.set_price(price)
                     #回测直接成交
                     order.finish_historical_order()
                     #更新订单
                     #previous_period_close order.price 是上一period close的价格
                     position.update_order(order)
-            self.has_signal = False
-        
+            self.has_signal = False 
 
     def _update_orderbook(self, current_datetime):
         current_datetime = current_datetime
@@ -217,9 +219,10 @@ class HistoricalStrategy(StrategyBase):
     def update(self)->bool:
         """
         """
-        self.update_symbol_object()
+        self.update_symbol_objects()
         self._update_orders()
         self._update_orderbook(self.dataflows.current_datetime)
+
 
     def make_trading_signal(self,tradetime : str, order : Order):
         # 由于考虑同一时间节点存在多个买入信号，所以trading_signals 使用列表结构
@@ -230,8 +233,6 @@ class HistoricalStrategy(StrategyBase):
             self.trading_signals[tradetime].append(order)
         self.has_signal = True
 
-    def init_trading_signal(self, tradetime: str, order:dict ):
-        self.make_trading_signal(tradetime,Order(order))
 
     def sell(self, symbol ,qty, islong=True):
         # tradetime_str = tradetime.strftime('%Y-%m-%d %H:%M:%S')
@@ -239,35 +240,20 @@ class HistoricalStrategy(StrategyBase):
             tradetime = self.dataflows.current_datetime_str
             order = Order(symbol=symbol, qty=qty, action="sell", order_type="historical", islong=islong)
             self.make_trading_signal(tradetime, order)
-            logger.debug(f'current datetime:{tradetime} make a trading signal for traded at {self.dataflows.next_period_index}')
+            logger.debug(f'current datetime:{tradetime}, symbol {symbol} make a {"long" if islong else "short"} sell \n \
+                         trading signal for deal at {self.dataflows.next_period_index}')
         else:
-            logger.warning(f'trading failed. symbol:"{symbol}" not in symbol  task list:{self.symbol_names}')
+            logger.warning(f'trading failed. symbol:"{symbol}" is not register in symbol task list:{self.symbol_names}')
 
     def buy(self, symbol ,qty, islong=True):
         if symbol in self.symbol_names:
             tradetime = self.dataflows.current_datetime_str
             order = Order(symbol=symbol, qty=qty, action="buy", order_type="historical", islong=islong)
             self.make_trading_signal(tradetime, order)
-            logger.debug(f'current datetime:{tradetime} make a trading signal for traded at {self.dataflows.next_period_index}')
+            logger.debug(f'current datetime:{tradetime}, symbol {symbol} make a {"long" if islong else "short"} buy \n \
+                         trading signal for deal at {self.dataflows.next_period_index}')
         else:
-            logger.warning(f'trading failed. symbol:"{symbol}" not in symbol symbol task list{self.symbol_names}')
-
-    def chase_init_order(self, trading_signals:dict):
-        tradetime, trading_orders = trading_signals.popitem()
-        for trading_order in trading_orders:
-            islong = trading_order.get("direction") == 1 or False
-            order = Order(
-                symbol=trading_order.get("symbol"), 
-                qty=trading_order.get("qty"), 
-                action=trading_order.get("action"), 
-                order_type=trading_order.get("order_type"),
-                 islong=islong
-            )
-            self.make_trading_signal(tradetime, order)
-        import pdb
-        pdb.set_trace()
-        logger.debug(f'chase_init_order make trading signal:{self.trading_signals}')
-
+            logger.warning(f'trading failed. symbol:"{symbol}" is not register in symbol task list{self.symbol_names}')
 
     async def run( self , **kwargs):
         try:
@@ -276,15 +262,9 @@ class HistoricalStrategy(StrategyBase):
             self.update()
             self.start()
         except Exception as e:
-            print(e)
-            import pdb
-            pdb.set_trace()
-        # self.SZ002212.history
+            logger.error(e.__repr__())
+            looper.stop()
         if self.wpc.pace == 0:
-            # import pdb
-            # pdb.set_trace()
-            pass
-            # self.symbols.SZ002212.history
             logger.debug(f"wpc active {self.wpc.cyclepoint}")
             self.dataflows.histories = self.dataflows.histories[self.wpc.keep_point_window : ]  
             
@@ -315,9 +295,10 @@ class HistoricalStrategy(StrategyBase):
         if self.dataflows.slided_end:
             try:
                 self.positions.settlement_all_symbol()
+                self.symbols.set_all_symbol_done()
                 self.update()
                 self.end()
                 looper.stop()
             except Exception as e:
-                logger.error(e)
+                logger.error(e.__repr__())
                 looper.stop()

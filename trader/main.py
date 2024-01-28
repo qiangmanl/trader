@@ -13,13 +13,15 @@ from trader.utils.tasks_function import \
 def init_project() -> None:
     #从文件中获取symbol
     try:
-        project_data_dir = f'{const.DATA_DIR}{os.sep}{local.node_domain}'
+        project_data_dir = local.domain_dir 
         project_data_dir_files = os.listdir(project_data_dir)
         if project_data_dir_files == []:
             raise DataIOError(f'{project_data_dir} is empty directory')
-
         for filename in project_data_dir_files:
             file_name_split = filename.split('.')
+            if len(file_name_split) != 3:
+                raise DataIOError(f'file {filename} is not a suitable name as symbol.tag.extension     \
+                format. remove file and try again')
             symbol, tag, fmt = file_name_split
             if (len(file_name_split) == 3 and tag[0].isalpha() and fmt == "csv" )  == False:
                 raise DataIOError(f'{filename} is not a suitable csv file')
@@ -98,7 +100,6 @@ def get_task_symbols(node_id, node_domain) -> List[str]:
     return symbol_list
 
 
-
 def get_update_param(update_symbols_param : str | int | bool):
     if isinstance(update_symbols_param, str):
         if update_symbols_param.lower() == "new":
@@ -174,12 +175,12 @@ def run_strategy( Strategy,*args, **kwargs ) -> None:
             no_domain_or_create()
             symbol_list = get_task_symbols(local.node_id, node_domain=local.node_domain)
             logger.debug(f'{get_domain(local.node_domain)}') 
-
+        keep_window = config.keep_dataflow_window or 1
         strategy.before_start_define(
             column_only_close = config.column_only_close,
             symbol_list       = symbol_list,
             histories_length=histories_length,
-            keep_window = config.keep_dataflow_window,
+            keep_window = keep_window,
             custom_index_name=custom_index_name,
             custom_ohlcv_columns=custom_ohlcv_columns,
             **historical_config["historical_order"]
@@ -205,6 +206,7 @@ def run_strategy( Strategy,*args, **kwargs ) -> None:
         if getattr(strategy, "ta",None) == None:
             from trader.strategy import TechnicalAnalyses
             strategy.create_ta(TechnicalAnalyses)
+            
      #注册心跳
     looper.register(
         strategy.run,

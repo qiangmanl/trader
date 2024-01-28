@@ -2,7 +2,7 @@ from typing import Any, Dict, List, Literal, Tuple, Union, NoReturn
 from celery import Celery
 from trader import config,logger
 from trader.utils.base import DictBase 
-from trader.exception import TasksAccountError, TasksRequestError
+from trader.exception import TasksRequestError
 # """
 #     不要在此页执行可能阻塞的指令， 比如直接调用task函数
 # """
@@ -295,8 +295,6 @@ def get_task_with_list(node_id, domain, symbol_list):
         logger.warning(e.__repr__())
         return '' , f'from task.get_task_with_list:{e.__repr__()}'
 
-
-
 # s  = SymbolsTaskPool()
 # d = s.new_domain(DomainObjects("demain1"))
 # d.add_symbol("SZ000002")
@@ -313,9 +311,6 @@ def get_task_with_list(node_id, domain, symbol_list):
 # d.transfer_to_symbol(300,"SZ000002")
 # d.transfer_from_symbol(1,"SZ000002")
 # d.account
-
-
-
 
 @app.task   
 def domain_get_symbol_object(domain:str, symbol:str) -> [ _SymbolObject | None, Literal[""] | str]:

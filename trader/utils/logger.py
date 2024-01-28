@@ -1,3 +1,4 @@
+import asyncio
 import sys
 from loguru import logger
 
@@ -104,11 +105,12 @@ class Logger:
                         case "exception":
                             self.exception(e)
                         case _:
-                            self.exception(f'{courier} Not an available courier!')                 
+                            self.exception(f'{courier} Not an available courier!')      
                     result = None
                 return result
             return wrapper 
         return decorator
+    
 
 
 

@@ -2,7 +2,7 @@ import os
 import json
 
 from trader.utils.base import DictBase
-
+from trader.exception import StrategyInitError
 # class ConfigBase(DictBase):
 #     def __init__(self):
 #         self.configures = {}
@@ -16,7 +16,7 @@ class Config(DictBase):
         Args:
             config_file: config json file.
         """
-        
+        self.configures = None
         self.config_file = '{}{}{}'.format(os.path.abspath(""),os.sep,config_file)
         if config_file:
             try:
@@ -26,12 +26,10 @@ class Config(DictBase):
                     if data:
                         self.configures = json.loads(data)
             except Exception as e:
-                print(e)
-                exit(0)
+                raise StrategyInitError(f'{self.config_file}:{e}')
+            
             if not self.configures:
-                print("config json file error!")
-                exit(0)
-
+                raise StrategyInitError("config json file error!")
 
         self._update_file_config(self.configures)
 

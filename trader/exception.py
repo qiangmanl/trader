@@ -6,20 +6,14 @@ class BaseCostomError(Exception):
 class TasksRequestError(BaseCostomError):
     pass
 
-class TasksAccountError(BaseCostomError):
-    pass
-
-class LocalAccountError(BaseCostomError):
-    pass
-
-
 class DataIOError(BaseCostomError):
     pass
 
 class SymbolProcessError(BaseCostomError):
     pass
 
-# try:
-#     1/0
-# except Exception as e:
-#     raise TasksRequestError(e)
+class StrategyInitError(BaseCostomError):
+    pass
+
+class StrategyRunError(BaseCostomError):
+    pass

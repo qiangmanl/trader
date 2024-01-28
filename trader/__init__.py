@@ -4,17 +4,23 @@
 __version__  = "0.1.0"
 import os
 from trader import const
+from trader.exception import StrategyInitError
 from trader.utils.tools import gen_random_id
+from trader.utils.base import DictBase
 from werkzeug.local import Local 
 from trader.utils.config import Config
 from trader.utils.logger import Logger
-
+from trader import const
 local   = Local()
-
-
-
 try:
+
     config = Config("config.json")
+
+except StrategyInitError as e:
+    logger = Logger()
+    logger.error(e.__repr__())
+    config = DictBase()
+try:
     if config.log == None:
         logger = Logger()
     else:
@@ -51,6 +57,5 @@ try:
 
     else:
         logger.error(f'unkonwn project kind: {config.kind}')
-
-except Exception:
+except Exception as e:
     pass

@@ -1,5 +1,5 @@
 {
-    "project": "parity",
+    "project": "test_position",
     "kind": "trader",
     "log": {
         "rotation": "500MB",
@@ -9,6 +9,23 @@
         "retention": "10 days",
         "level": "Debug"
     },
+    "strategy_index_name": "datetime",
+    "ohlcv_columns": [
+        "close"
+    ],
+    "column_only_close": true,
+    "strategy_heartbeat": {
+        "heartname": "strategy",
+        "print_interval": 60,
+        "interval": 1e-08
+    },
+    "amqp_server": {
+        "broker": "amqp://guest@localhost//",
+        "backend": "rpc://"
+    },
+    "node_domain": "test",
+    "node_id": "admin",
+    "node_stand_alone": false,
     "historical_config": {
         "histories_length": 20000,
         "historical_order": {
@@ -19,26 +36,15 @@
                 "leverage": 1
             },
             "testsymbol1": {
-                "balance": 100000,
+                "balance": 100001,
                 "long_fee": 0.0,
                 "short_fee": 0.0,
                 "leverage": 1
             }
         }
     },
-    "strategy_heartbeat": {
-        "heartname": "strategy",
-        "print_interval": 60,
-        "interval": 1e-08
-    },
-    "histories_length": 2000,
-    "update_local_symbols": false,
-    "amqp_server": {
-        "broker": "amqp://guest@localhost//",
-        "backend": "rpc://"
-    },
-    "node_id": "yBhR7ZEmXXWYThv0zN",
-    "node_domain": "default",
-    "catch_new_tasks": 1,
-    "tasks_symbols": []
+    "tasks_symbols": [
+        "testsymbol1"
+    ],
+    "create_new_domain": false
 }

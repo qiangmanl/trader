@@ -1,5 +1,5 @@
 
-from trader.amqp_server import tasks
+from trader.amqp_tasks import tasks
 # from trader.assets import Order
 
 def get_domain(domain_name):

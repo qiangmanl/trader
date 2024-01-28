@@ -20,7 +20,7 @@ class _SymbolObject(DictBase):
         self.history = None
         self.position = None
         self.property_dict = SymbolsPropertyDict()
-        self.orderbook = pd.DataFrame(columns=OrderBookPattern.keys)
+        self.orderbook = None
 
     def set_state(self, state):
         """
@@ -73,8 +73,9 @@ class SymbolManager:
             return True
         else:
             raise SymbolProcessError(f'SymbolManager add_symbol:{symbol_name} exist')
-        return False
-    
+
+
+
     def del_all_symbol(self):
         if self.length > 0:
             for _ in range(self.length):
@@ -101,3 +102,7 @@ class DomainSymbols(AccountObject, SymbolManager, list):
         super(DomainSymbols, self).__init__()
         for symbol in symbols:
             self.add_symbol(symbol)
+
+    def set_all_symbol_done(self):
+        for symbol_name in self.updated_symbols:
+            self.set_symbol_state(symbol_name, "done")

@@ -3,7 +3,7 @@ from trader.utils.base import DictBase
 
 class Order(DictBase):
     
-    def __init__(self, symbol="", action="", qty=0, price=None, islong=True, order_type=""):
+    def __init__(self, symbol="", action="", qty=0,  islong=True, order_type=""):
         """
         action: buy||sell
         status :["pending","partially_executed","finished","cancel"]
@@ -14,9 +14,7 @@ class Order(DictBase):
         self.symbol = symbol
         self.direction =  int(islong) or -1
         self.action = action
-        assert qty > 0.0000000001
-        self.qty = qty
-        self.price = price
+        self.qty = qty or 0.0000000001
         self.order_type = order_type
         self.status = 'pending'
         self.fil_qty = 0 
@@ -28,10 +26,6 @@ class Order(DictBase):
     @property
     def locked(self):
         return self.status  in ["cancel","finished"]
-
-    def set_price(self, price):
-        if not self.locked and self.status == "pending":
-            self.price = price 
 
     def set_status(self, status):
         if not self.locked:
